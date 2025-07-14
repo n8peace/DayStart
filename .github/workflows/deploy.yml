@@ -71,7 +71,9 @@ jobs:
         cache: 'npm'
         
     - name: Install Supabase CLI
-      run: npm install -g supabase@latest
+      run: |
+        curl -fsSL https://supabase.com/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
       
     - name: Deploy Database Migrations
       env:

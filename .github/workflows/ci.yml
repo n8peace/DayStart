@@ -41,8 +41,10 @@ jobs:
         cache: 'npm'
         
     - name: Install Supabase CLI
-      run: npm install -g supabase@latest
-      
+      run: |
+        curl -fsSL https://supabase.com/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
     - name: Validate Supabase Config
       run: |
         cd supabase
@@ -73,8 +75,10 @@ jobs:
         cache: 'npm'
         
     - name: Install Supabase CLI
-      run: npm install -g supabase@latest
-      
+      run: |
+        curl -fsSL https://supabase.com/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
     - name: Deploy to Supabase Develop
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -111,8 +115,10 @@ jobs:
         cache: 'npm'
         
     - name: Install Supabase CLI
-      run: npm install -g supabase@latest
-      
+      run: |
+        curl -fsSL https://supabase.com/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
     - name: Deploy to Supabase Production
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
