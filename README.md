@@ -85,13 +85,13 @@ Create a `.env` file in the root directory:
 SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
+SUPABASE_MAIN_PROJECT=your_supabase_main_project
 
 # Supabase (Develop Environment - uncomment to use)
 # SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
 # SUPABASE_ANON_KEY=your_supabase_anon_key
 # SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-# SUPABASE_DEVELOP_PROJECT=epqiarnkhzabggxiltci
+# SUPABASE_DEVELOP_PROJECT=your_supabase_develop_project
 
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
