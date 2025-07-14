@@ -36,25 +36,25 @@ jobs:
         echo "🔍 Validating development environment variables..."
         
         # Check each secret directly
-        if [ -z "${{ secrets.SUPABASE_URL_DEV }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_URL_DEV"
+        if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_URL"
           exit 1
         else
-          echo "✅ SUPABASE_URL_DEV is set"
+          echo "✅ SUPABASE_URL is set"
         fi
         
-        if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY_DEV"
+        if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY"
           exit 1
         else
-          echo "✅ SUPABASE_SERVICE_ROLE_KEY_DEV is set"
+          echo "✅ SUPABASE_SERVICE_ROLE_KEY is set"
         fi
         
-        if [ -z "${{ secrets.SUPABASE_DEV_PROJECT_REF }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_DEV_PROJECT_REF"
+        if [ -z "${{ secrets.SUPABASE_MAIN_PROJECT }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_MAIN_PROJECT"
           exit 1
         else
-          echo "✅ SUPABASE_DEV_PROJECT_REF is set"
+          echo "✅ SUPABASE_MAIN_PROJECT is set"
         fi
         
         if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
@@ -71,8 +71,8 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Linking to development project: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}"
-        supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+        echo "Linking to development project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
+        supabase link --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }}
         
     - name: Deploy database migrations
       env:
@@ -96,8 +96,8 @@ jobs:
         
         # Test generate-message function
         echo "Testing generate-message function..."
-        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL_DEV }}/functions/v1/generate-message \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}")
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/generate-message \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
         
         http_code=$(echo "$response" | tail -n1)
         if [ "$http_code" = "200" ]; then
@@ -109,8 +109,8 @@ jobs:
         
         # Test test-voice function
         echo "Testing test-voice function..."
-        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL_DEV }}/functions/v1/test-voice \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}")
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/test-voice \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
         
         http_code=$(echo "$response" | tail -n1)
         if [ "$http_code" = "200" ]; then
@@ -122,8 +122,8 @@ jobs:
         
         # Test database connectivity (optional - may fail if migrations not run yet)
         echo "Testing database connectivity..."
-        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL_DEV }}/rest/v1/users?select=count \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}" \
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json")
         
         http_code=$(echo "$response" | tail -n1)
@@ -149,10 +149,10 @@ jobs:
       if: success()
       run: |
         echo "🎉 Successfully deployed to development!"
-        echo "Project: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}"
+        echo "Project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
         echo "Deployment time: $(date)"
         echo "Commit: ${{ github.sha }}"
-        echo "Supabase URL: ${{ secrets.SUPABASE_URL_DEV }}"
+        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
         
   deployment-failed:
     name: Development Deployment Failed
@@ -164,9 +164,9 @@ jobs:
       run: |
         echo "❌ Development deployment failed!"
         echo "Please check the logs and fix any issues before retrying."
-        echo "Project: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}"
+        echo "Project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
         echo "Commit: ${{ github.sha }}"
-        echo "Supabase URL: ${{ secrets.SUPABASE_URL_DEV }}"
+        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
         
     - name: Rollback guidance
       run: |
