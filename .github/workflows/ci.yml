@@ -81,12 +81,16 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Linking to develop project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
-        supabase link --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
-        echo "Deploying database migrations..."
+        echo "🔍 Checking if database URL is available..."
+        if [ -z "${{ secrets.SUPABASE_DEVELOP_DB_URL }}" ]; then
+          echo "❌ SUPABASE_DEVELOP_DB_URL secret is not set"
+          exit 1
+        fi
+        echo "✅ Database URL is available"
+        echo "Deploying database migrations using direct database URL..."
         supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }}
         echo "Deploying edge functions..."
-        supabase functions deploy
+        supabase functions deploy --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
         
     - name: Notify Deploy Success
       run: |
