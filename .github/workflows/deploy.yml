@@ -64,16 +64,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
       with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install Supabase CLI
-      run: |
-        curl -fsSL https://supabase.com/install.sh | sh
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        version: latest
       
     - name: Deploy Database Migrations
       env:
