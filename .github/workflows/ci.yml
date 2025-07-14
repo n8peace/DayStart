@@ -95,6 +95,16 @@ jobs:
         echo "Database URL format: $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | cut -d'@' -f2 | cut -d'/' -f1)"
         echo "🔍 Full database URL (masked): $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | sed 's/:[^:@]*@/@***@/')"
         
+        # Test basic connectivity to Supabase
+        echo "🔍 Testing basic connectivity to Supabase..."
+        HOST=$(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | sed -n 's/.*@\([^:]*\):.*/\1/p')
+        echo "Testing connection to: $HOST:6543"
+        if timeout 10 nc -zv $HOST 6543 2>/dev/null; then
+          echo "✅ Port 6543 is reachable"
+        else
+          echo "⚠️  Port 6543 connection test failed (this might be normal)"
+        fi
+        
         echo "🔍 Checking database URL format..."
         DB_URL="${{ secrets.SUPABASE_DEVELOP_DB_URL }}"
         if [[ "$DB_URL" == *"aws-0-us-west-1.pooler.supabase.com"* ]]; then
@@ -109,7 +119,8 @@ jobs:
         fi
         
         echo "Deploying database migrations using direct database URL..."
-        if supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug; then
+        echo "🔧 Using extended timeout and retry settings..."
+        if timeout 120 supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug; then
           echo "✅ Database migrations deployed successfully"
         else
           echo "❌ CLI deployment failed with direct URL"
