@@ -1,6 +1,8 @@
-name: Manual Production Deployment
+name: Deploy to Production
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       environment:
@@ -23,7 +25,7 @@ jobs:
   validate-deployment:
     name: Validate Deployment Request
     runs-on: ubuntu-latest
-    if: github.event.inputs.confirm_deployment == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deployment == 'true'
     
     steps:
     - name: Checkout code
@@ -54,29 +56,77 @@ jobs:
         fi
         echo "✅ Environment validation passed"
         
-  deploy-production:
-    name: Deploy to Production
+  deploy-production-auto:
+    name: Deploy to Production (Auto)
     runs-on: ubuntu-latest
-    needs: validate-deployment
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+      
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
       with:
         version: latest
-      
-    - name: Deploy Database Migrations
+        
+    - name: Validate environment variables
+      run: |
+        echo "🔍 Validating production environment variables..."
+        
+        # Check each secret directly
+        if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_URL"
+          exit 1
+        else
+          echo "✅ SUPABASE_URL is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY"
+          exit 1
+        else
+          echo "✅ SUPABASE_SERVICE_ROLE_KEY is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_MAIN_PROJECT }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_MAIN_PROJECT"
+          exit 1
+        else
+          echo "✅ SUPABASE_MAIN_PROJECT is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_ACCESS_TOKEN"
+          exit 1
+        else
+          echo "✅ SUPABASE_ACCESS_TOKEN is set"
+        fi
+        
+        echo "✅ All required environment variables are set"
+        
+    - name: Link to production project
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
         echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
         supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
+        
+    - name: Deploy database migrations
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
         echo "Deploying database migrations..."
-        supabase db push --db-url ${{ secrets.SUPABASE_MAIN_DB_URL }}
+        supabase db push
         
     - name: Deploy Edge Functions
       env:
@@ -86,7 +136,7 @@ jobs:
         echo "Deploying edge functions..."
         supabase functions deploy
         
-    - name: Verify Deployment
+    - name: Verify deployment status
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
@@ -94,22 +144,132 @@ jobs:
         echo "Verifying deployment..."
         supabase status
         
-    - name: Notify Deployment Success
+    - name: Notify deployment success
+      if: success()
       run: |
         echo "🎉 Successfully deployed to production!"
         echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
         echo "Deployment time: $(date)"
         echo "Commit: ${{ github.sha }}"
+        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
+        
+  deploy-production-manual:
+    name: Deploy to Production (Manual)
+    runs-on: ubuntu-latest
+    needs: validate-deployment
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deployment == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+      
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+        
+    - name: Validate environment variables
+      run: |
+        echo "🔍 Validating production environment variables..."
+        
+        # Check each secret directly
+        if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_URL"
+          exit 1
+        else
+          echo "✅ SUPABASE_URL is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY"
+          exit 1
+        else
+          echo "✅ SUPABASE_SERVICE_ROLE_KEY is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_MAIN_PROJECT }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_MAIN_PROJECT"
+          exit 1
+        else
+          echo "✅ SUPABASE_MAIN_PROJECT is set"
+        fi
+        
+        if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_ACCESS_TOKEN"
+          exit 1
+        else
+          echo "✅ SUPABASE_ACCESS_TOKEN is set"
+        fi
+        
+        echo "✅ All required environment variables are set"
+        
+    - name: Link to production project
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+        supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
+        
+    - name: Deploy database migrations
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "Deploying database migrations..."
+        supabase db push
+        
+    - name: Deploy Edge Functions
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "Deploying edge functions..."
+        supabase functions deploy
+        
+    - name: Verify deployment status
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "Verifying deployment..."
+        supabase status
+        
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🎉 Successfully deployed to production!"
+        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+        echo "Deployment time: $(date)"
+        echo "Commit: ${{ github.sha }}"
+        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
         
   deployment-failed:
-    name: Deployment Failed
+    name: Production Deployment Failed
     runs-on: ubuntu-latest
     if: failure()
     
     steps:
-    - name: Notify Failure
+    - name: Notify failure
       run: |
         echo "❌ Production deployment failed!"
         echo "Please check the logs and fix any issues before retrying."
         echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
         echo "Commit: ${{ github.sha }}"
+        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
+        
+    - name: Rollback guidance
+      run: |
+        echo "🔄 Rollback guidance:"
+        echo "1. Check Supabase dashboard for deployment status"
+        echo "2. Review function logs for errors"
+        echo "3. Verify environment variables are correctly set"
+        echo "4. Check database migration status"
+        echo "5. Manual rollback may be required via Supabase dashboard"

@@ -118,4 +118,7 @@ jspm_packages/
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+
+# Temporary troubleshooting workflows
+.github/workflows/other-workflows/ 
