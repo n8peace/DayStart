@@ -14,6 +14,7 @@ jobs:
   deploy-develop:
     name: Deploy to Development
     runs-on: ubuntu-latest
+    environment: develop
     
     steps:
     - name: Checkout code

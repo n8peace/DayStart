@@ -59,6 +59,7 @@ jobs:
   deploy-production-auto:
     name: Deploy to Production (Auto)
     runs-on: ubuntu-latest
+    environment: main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -156,6 +157,7 @@ jobs:
   deploy-production-manual:
     name: Deploy to Production (Manual)
     runs-on: ubuntu-latest
+    environment: main
     needs: validate-deployment
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deployment == 'true'
     
