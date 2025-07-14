@@ -94,11 +94,35 @@ jobs:
         echo "🔍 Testing network connectivity..."
         echo "Database URL format: $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | cut -d'@' -f2 | cut -d'/' -f1)"
         
+        echo "🔍 Checking database URL format..."
+        DB_URL="${{ secrets.SUPABASE_DEVELOP_DB_URL }}"
+        if [[ "$DB_URL" == *"pooler.supabase.com"* ]]; then
+          echo "✅ Using new pooler format (correct)"
+        elif [[ "$DB_URL" == *"db."*".supabase.co"* ]]; then
+          echo "⚠️  Using old direct format (may not work)"
+        else
+          echo "❓ Unknown database URL format"
+        fi
+        
         echo "Deploying database migrations using direct database URL..."
         if supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug; then
           echo "✅ Database migrations deployed successfully"
         else
-          echo "❌ CLI deployment failed, trying REST API approach..."
+          echo "❌ CLI deployment failed with direct URL"
+          echo "🔍 Trying alternative URL format..."
+          
+          # Try to construct pooler URL if using old format
+          if [[ "$DB_URL" == *"db."*".supabase.co"* ]]; then
+            echo "🔄 Converting to pooler format..."
+            # Extract project ref from old format
+            PROJECT_REF=$(echo "$DB_URL" | sed -n 's/.*@db\.\([^.]*\)\.supabase\.co.*/\1/p')
+            if [ -n "$PROJECT_REF" ]; then
+              echo "📋 Project reference: $PROJECT_REF"
+              echo "📋 Please update your SUPABASE_DEVELOP_DB_URL secret to use pooler format:"
+              echo "📋 postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+            fi
+          fi
+          
           echo "📋 Manual deployment required - check Supabase Dashboard"
           echo "🔗 Project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
           exit 1
