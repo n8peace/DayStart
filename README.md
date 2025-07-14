@@ -21,13 +21,13 @@ DayStart transforms the morning routine by combining:
 ## 📁 Project Structure
 
 ```
-daystart/
-├── ios-app/           # SwiftUI iOS app code
+DayStart/
 ├── supabase/          # Supabase project files
 │   ├── functions/     # Edge functions
-│   └── migrations/    # Database migrations
+│   ├── migrations/    # Database migrations
+│   └── config.toml    # Supabase configuration
 ├── scripts/           # Helper scripts for local dev, migrations, audio testing
-├── docs/              # Project overview, architecture, onboarding
+├── docs/              # Project documentation
 ├── .github/           # GitHub Actions workflows
 ├── .env               # Local environment file (gitignored)
 └── README.md          # This file
@@ -37,8 +37,6 @@ daystart/
 
 ### Prerequisites
 
-- Xcode 15.0+
-- iOS 17.0+
 - Node.js 18+ (for Supabase CLI)
 - Supabase CLI
 - ElevenLabs API key
@@ -54,9 +52,10 @@ daystart/
    # Edit .env with your API keys
    ```
 
-2. **iOS App Setup**
+2. **iOS App Setup** (Coming Soon)
    ```bash
-   cd ios-app
+   # iOS app development will begin after backend is complete
+   # cd ios-app
    # Open DayStart.xcodeproj in Xcode
    # Configure signing and capabilities
    ```
@@ -165,4 +164,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For support and questions:
 - Create an issue in this repository
 - Check the [documentation](docs/)
-- Review [troubleshooting guide](docs/troubleshooting.md) # Test deployment - Mon Jul 14 15:40:10 PDT 2025
+- Review [troubleshooting guide](docs/troubleshooting.md) 
