@@ -153,6 +153,5 @@ jobs:
         echo "Checking project structure..."
         test -f README.md || exit 1
         test -f .env.example || exit 1
-        test -d ios-app || exit 1
         test -d supabase || exit 1
         echo "✅ Project structure is valid"

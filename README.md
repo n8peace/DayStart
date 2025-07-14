@@ -123,7 +123,6 @@ APP_ENV=development
 - **Voice Customization**: Multiple voice options via ElevenLabs
 - **Weather Integration**: Local weather in morning messages
 - **News Briefing**: Curated news based on user interests
-- **Sleep Tracking**: Basic sleep pattern analysis
 - **Offline Support**: Core functionality works offline
 
 ## 🔧 Available Scripts
