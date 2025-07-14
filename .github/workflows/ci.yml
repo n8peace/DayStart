@@ -1,0 +1,162 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop, main ]
+
+env:
+  SUPABASE_DEVELOP_PROJECT: epqiarnkhzabggxiltci
+  SUPABASE_MAIN_PROJECT: yqbrfznixefqqhnvingu
+
+jobs:
+  # iOS App CI
+  ios-ci:
+    name: iOS Build & Test
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.0'
+        
+    - name: Build iOS App
+      run: |
+        cd ios-app
+        xcodebuild -project DayStart.xcodeproj -scheme DayStart -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' build
+        
+    - name: Run iOS Tests
+      run: |
+        cd ios-app
+        xcodebuild -project DayStart.xcodeproj -scheme DayStart -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' test
+        
+  # Supabase CI
+  supabase-ci:
+    name: Supabase Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install Supabase CLI
+      run: npm install -g supabase@latest
+      
+    - name: Validate Supabase Config
+      run: |
+        cd supabase
+        supabase --version
+        supabase status
+        
+    - name: Validate Migrations
+      run: |
+        cd supabase
+        supabase db lint
+        
+  # Deploy to Develop (on develop branch)
+  deploy-develop:
+    name: Deploy to Develop Environment
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    needs: [ios-ci, supabase-ci]
+    environment: develop
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install Supabase CLI
+      run: npm install -g supabase@latest
+      
+    - name: Deploy to Supabase Develop
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        supabase link --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
+        supabase db push
+        supabase functions deploy
+        
+    - name: Notify Deploy Success
+      run: |
+        echo "✅ Successfully deployed to develop environment"
+        echo "Project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
+        
+  # Deploy to Production (manual trigger only)
+  deploy-production:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [ios-ci, supabase-ci]
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install Supabase CLI
+      run: npm install -g supabase@latest
+      
+    - name: Deploy to Supabase Production
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
+        supabase db push
+        supabase functions deploy
+        
+    - name: Notify Deploy Success
+      run: |
+        echo "✅ Successfully deployed to production environment"
+        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+        
+  # Security & Quality Checks
+  security-checks:
+    name: Security & Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check for secrets in code
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        
+    - name: Check for large files
+      run: |
+        find . -type f -size +10M -not -path "./.git/*" | head -10
+        
+    - name: Validate file structure
+      run: |
+        echo "Checking project structure..."
+        test -f README.md || exit 1
+        test -f .env.example || exit 1
+        test -d ios-app || exit 1
+        test -d supabase || exit 1
+        echo "✅ Project structure is valid"
