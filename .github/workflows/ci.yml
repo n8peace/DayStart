@@ -93,6 +93,7 @@ jobs:
         
         echo "🔍 Testing network connectivity..."
         echo "Database URL format: $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | cut -d'@' -f2 | cut -d'/' -f1)"
+        echo "🔍 Full database URL (masked): $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | sed 's/:[^:@]*@/@***@/')"
         
         echo "🔍 Checking database URL format..."
         DB_URL="${{ secrets.SUPABASE_DEVELOP_DB_URL }}"
