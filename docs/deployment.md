@@ -89,10 +89,22 @@ graph LR
 
 ### GitHub Secrets Required
 
-Set these secrets in your GitHub repository settings:
+Set these secrets for each environment in your GitHub repository settings:
 
+#### Develop Environment Secrets
 ```bash
-SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_ACCESS_TOKEN=your_develop_access_token
+SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
+SUPABASE_ANON_KEY=your_develop_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_develop_service_role_key
+```
+
+#### Production Environment Secrets
+```bash
+SUPABASE_ACCESS_TOKEN=your_production_access_token
+SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
+SUPABASE_ANON_KEY=your_production_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
 ```
 
 ### Environment Variables
