@@ -108,8 +108,6 @@ APP_ENV=development
 ### Branch Strategy
 - `main`: Production-ready code
 - `develop`: Integration branch for features
-- `feature/*`: Individual feature branches
-- `hotfix/*`: Critical production fixes
 
 ### Development Process
 1. Create feature branch from `develop`

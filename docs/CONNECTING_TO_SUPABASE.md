@@ -142,7 +142,7 @@ supabase migration list
 ### Current System State (July 2025)
 - **Users**: 0+ users (new project)
 - **Alarms**: 0+ configured alarms (new project)
-- **Functions**: 2 functions ready for deployment
+- **Functions**: 0 functions ready for deployment (new project)
 - **Migrations**: 1 migration (users table)
 
 ### Key Tables

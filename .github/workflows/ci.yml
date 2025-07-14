@@ -79,13 +79,13 @@ jobs:
     - name: Deploy to Supabase Develop
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
         cd supabase
+        echo "Linking to develop project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
         supabase link --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
-        supabase db push
+        echo "Deploying database migrations..."
+        supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }}
+        echo "Deploying edge functions..."
         supabase functions deploy
         
     - name: Notify Deploy Success
@@ -99,7 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [ios-ci, supabase-ci]
-    environment: production
     
     steps:
     - name: Checkout code
@@ -113,13 +112,13 @@ jobs:
     - name: Deploy to Supabase Production
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
         cd supabase
+        echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
         supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
-        supabase db push
+        echo "Deploying database migrations..."
+        supabase db push --db-url ${{ secrets.SUPABASE_MAIN_DB_URL }}
+        echo "Deploying edge functions..."
         supabase functions deploy
         
     - name: Notify Deploy Success
