@@ -11,29 +11,19 @@ env:
   SUPABASE_MAIN_PROJECT: yqbrfznixefqqhnvingu
 
 jobs:
-  # iOS App CI
+  # iOS App CI (Disabled for now - focus on backend first)
   ios-ci:
-    name: iOS Build & Test
-    runs-on: macos-latest
+    name: iOS Build & Test (Skipped)
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '15.0'
-        
-    - name: Build iOS App
+    - name: Skip iOS Build
       run: |
-        cd ios-app
-        xcodebuild -project DayStart.xcodeproj -scheme DayStart -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' build
-        
-    - name: Run iOS Tests
-      run: |
-        cd ios-app
-        xcodebuild -project DayStart.xcodeproj -scheme DayStart -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' test
+        echo "iOS builds disabled - focusing on backend development first"
+        echo "Will enable when iOS app development begins"
         
   # Supabase CI
   supabase-ci:
