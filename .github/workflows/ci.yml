@@ -95,7 +95,15 @@ jobs:
         echo "Database URL format: $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | cut -d'@' -f2 | cut -d'/' -f1)"
         
         echo "Deploying database migrations using direct database URL..."
-        supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug
+        if supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug; then
+          echo "✅ Database migrations deployed successfully"
+        else
+          echo "❌ CLI deployment failed, trying REST API approach..."
+          echo "📋 Manual deployment required - check Supabase Dashboard"
+          echo "🔗 Project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
+          exit 1
+        fi
+        
         echo "Deploying edge functions..."
         supabase functions deploy --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
         
