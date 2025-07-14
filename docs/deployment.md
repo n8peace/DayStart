@@ -1,16 +1,61 @@
-# Deployment Guide
+# DayStart Deployment Guide
 
-## Overview
+## 🎯 Overview
 
-DayStart uses a multi-environment deployment strategy with automated CI/CD pipelines:
+DayStart uses a dual-environment deployment system with automated CI/CD pipelines:
 
-- **Develop Environment**: `epqiarnkhzabggxiltci` - Automatic deployment on develop branch
-- **Production Environment**: `yqbrfznixefqqhnvingu` - Manual deployment from main branch
+- **`main` branch** → Production environment (`yqbrfznixefqqhnvingu`)
+- **`develop` branch** → Development environment (`epqiarnkhzabggxiltci`)
 
-## Deployment Workflow
+> **Note:** As of now, there are no deployed functions or application code. The deployment system is in place for future use.
 
-### 1. Development Workflow
+## 🚀 Quick Start (5 Minutes)
 
+### 1. **Enable GitHub Integration in Supabase**
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Navigate to **Settings** → **GitHub**
+4. Click **"Connect GitHub"**
+5. Authorize Supabase to access your GitHub repository
+6. Select your repository
+7. Configure deployment settings:
+   - **Supabase directory path**: `supabase`
+   - **Production branch**: `main`
+   - **Enable automatic branching**: ✅ Checked
+
+### 2. **Configure GitHub Secrets**
+Set these secrets in your GitHub repository settings:
+
+#### Production Environment (`main` branch)
+```bash
+SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
+SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
+SUPABASE_ACCESS_TOKEN=your-supabase-access-token
+SUPABASE_MAIN_DB_URL=postgresql://postgres.yqbrfznixefqqhnvingu:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+```
+
+#### Development Environment (`develop` branch)
+```bash
+SUPABASE_URL_DEV=https://epqiarnkhzabggxiltci.supabase.co
+SUPABASE_SERVICE_ROLE_KEY_DEV=your-development-service-role-key
+SUPABASE_DEV_PROJECT_REF=epqiarnkhzabggxiltci
+SUPABASE_ACCESS_TOKEN=your-supabase-access-token
+SUPABASE_DEVELOP_DB_URL=postgresql://postgres.epqiarnkhzabggxiltci:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+```
+
+### 3. **Set Up Branch Protection (Recommended)**
+In GitHub repository settings:
+1. Go to **Settings** → **Branches**
+2. Add rule for `main` branch:
+   - ✅ Require status checks to pass
+   - ✅ Require branches to be up to date
+   - ✅ Require pull request reviews
+   - ✅ Restrict direct pushes
+
+## 🔄 Deployment Workflow
+
+### Development Workflow
 ```mermaid
 graph LR
     A[Feature Branch] --> B[PR to develop]
@@ -26,8 +71,7 @@ graph LR
 4. CI pipeline runs automatically
 5. After approval and merge, automatic deployment to develop environment
 
-### 2. Production Workflow
-
+### Production Workflow
 ```mermaid
 graph LR
     A[develop] --> B[PR to main]
@@ -44,108 +88,118 @@ graph LR
 4. Merge to `main` branch
 5. Manual production deployment triggered
 
-## CI/CD Pipeline
+## 📋 Required Repository Structure
 
-### Automated Jobs
-
-#### iOS CI
-- **Trigger**: All pushes and PRs
-- **Actions**:
-  - Build iOS app with Xcode
-  - Run unit tests
-  - Validate project structure
-
-#### Supabase CI
-- **Trigger**: All pushes and PRs
-- **Actions**:
-  - Validate Supabase configuration
-  - Check migration syntax
-  - Lint database schema
-
-#### Security Checks
-- **Trigger**: All pushes and PRs
-- **Actions**:
-  - Scan for secrets in code
-  - Check for large files
-  - Validate project structure
-
-### Deployment Jobs
-
-#### Develop Deployment
-- **Trigger**: Push to `develop` branch
-- **Actions**:
-  - Deploy database migrations
-  - Deploy Edge Functions
-  - Update develop environment
-
-#### Production Deployment
-- **Trigger**: Manual workflow dispatch
-- **Actions**:
-  - Validate deployment request
-  - Deploy to production environment
-  - Verify deployment success
-
-## Environment Configuration
-
-### GitHub Secrets Required
-
-Set these secrets for each environment in your GitHub repository settings:
-
-#### Develop Environment Secrets
-```bash
-SUPABASE_ACCESS_TOKEN=your_develop_access_token
-SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
-SUPABASE_ANON_KEY=your_develop_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_develop_service_role_key
-SUPABASE_DEVELOP_PROJECT=your_supabase_develop_project
+### **Minimum Structure**
+```
+your-project/
+├── .github/
+│   └── workflows/          # GitHub Actions
+├── supabase/
+│   ├── config.toml         # Supabase config
+│   └── migrations/         # Database migrations
+│       └── 20240101000000_create_users_table.sql
+└── README.md
 ```
 
-#### Production Environment Secrets
-```bash
-SUPABASE_ACCESS_TOKEN=your_production_access_token
-SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
-SUPABASE_ANON_KEY=your_production_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
-SUPABASE_MAIN_PROJECT=your_supabase_main_project
+### **Example config.toml**
+```toml
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+port = 54325
 ```
 
-### Environment Variables
+## 🚀 Workflow Files
 
-Each environment uses different Supabase project references:
+### Production Deployment (`.github/workflows/deploy.yml`)
+- **Automatic**: Triggers on push to `main` branch
+- **Manual**: Workflow dispatch with confirmation dialog
+- **Validation**: Branch validation, environment variable checks
+- **Health Checks**: Post-deployment verification of database
 
-```env
-# Develop Environment
-SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
+### Development Deployment (`.github/workflows/deploy-develop.yml`)
+- **Automatic**: Triggers on push to `develop` branch
+- **Manual**: Workflow dispatch (no confirmation required)
+- **Validation**: Environment variable checks
+- **Health Checks**: Post-deployment verification of database
 
-# Production Environment  
-SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
-```
+## 📊 Deployment Process
 
-## Manual Production Deployment
+### 1. Environment Validation
+- Validates all required secrets are present
+- Checks branch permissions and working directory state
+- Ensures proper environment configuration
 
-### Prerequisites
-- Must be on `main` branch
-- Working directory must be clean
-- All CI checks must pass
+### 2. Supabase Deployment
+- Links to appropriate Supabase project
+- Deploys database migrations
+- Sets environment variables
 
-### Steps
-1. Go to GitHub Actions tab
-2. Select "Manual Production Deployment" workflow
-3. Click "Run workflow"
-4. Select "production" environment
-5. Check "Confirm deployment" checkbox
-6. Click "Run workflow"
+### 3. Health Checks
+- Verifies database connectivity
+- Validates deployment status
 
-### Validation
-The workflow will:
-- Validate you're on main branch
-- Check for uncommitted changes
-- Verify environment selection
-- Deploy database migrations
-- Deploy Edge Functions
-- Verify deployment success
+### 4. Notification
+- Success notifications with deployment details
+- Failure notifications with rollback guidance
 
-## Database Migrations
+## 🔧 Setup Instructions
+
+### 1. Create Supabase Projects
+1. Create production project in Supabase dashboard
+2. Create development project in Supabase dashboard
+3. Note the project references for each
+
+### 2. Get Supabase Access Token
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Navigate to Account → Access Tokens
+3. Generate a new access token
+
+### 3. Get Service Role Keys
+1. In each Supabase project dashboard
+2. Go to Settings → API
+3. Copy the "service_role" key (not the anon key)
+
+### 4. Get Database URLs
+1. Go to your Supabase project dashboard
+2. Click on "Settings" → "Database"
+3. Scroll down to "Connection string"
+4. Select "URI" format
+5. Copy the connection string
+6. Replace `[YOUR-PASSWORD]` with your database password
+
+### 5. Configure GitHub Secrets
+1. Go to your GitHub repository
+2. Settings → Secrets and variables → Actions
+3. Add all required secrets with exact names
+
+### 6. Test Deployments
+1. Push to `develop` branch to test development deployment
+2. Push to `main` branch to test production deployment
+3. Check GitHub Actions logs for any issues
+
+## 🗄️ Database Migrations
 
 ### Migration Process
 1. Create migration file in `supabase/migrations/`
@@ -160,49 +214,78 @@ Use timestamp format: `YYYYMMDDHHMMSS_description.sql`
 
 Example: `20240101120000_create_users_table.sql`
 
-## Edge Functions
-
-### Deployment Process
-1. Update function code in `supabase/functions/`
-2. Push to develop branch
-3. Automatic deployment to develop environment
-4. Test function endpoints
-5. Deploy to production when ready
-
-### Function Structure
-```
-supabase/functions/
-├── generate-message/
-│   └── index.ts
-└── test-voice/
-    └── index.ts
-```
-
-## Monitoring & Troubleshooting
-
-### Deployment Logs
-- View logs in GitHub Actions
-- Check Supabase Dashboard for function logs
-- Monitor database migrations in Supabase
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-#### Migration Failures
-- Check SQL syntax in migration files
-- Verify RLS policies
-- Check for conflicting migrations
+#### Missing Environment Variables
+```
+❌ Missing required environment variable: SUPABASE_URL
+```
+**Solution**: Add the missing secret to GitHub repository settings
 
-#### Function Deployment Issues
-- Verify TypeScript compilation
-- Check function dependencies
-- Review function logs in Supabase Dashboard
+#### Database Connectivity Issues
+```
+⚠️ Database connectivity check failed (HTTP 401)
+```
+**Solution**: 
+1. Verify service role key is correct
+2. Check if users table exists
+3. Verify RLS policies are configured correctly
 
-#### iOS Build Failures
-- Check Xcode project configuration
-- Verify Swift Package dependencies
-- Review build logs for specific errors
+#### Project Linking Failures
+```
+Error: Project not found
+```
+**Solution**:
+1. Verify project reference is correct
+2. Check Supabase access token has proper permissions
+3. Ensure project exists and is accessible
 
-## Rollback Procedures
+#### SASL Authentication Error
+If you see "failed SASL auth" errors:
+1. Verify the database URL is correct
+2. Ensure the password in the URL is correct
+3. Check that the project reference matches the database URL
+4. Verify the access token has proper permissions
+
+### Debug Commands
+
+```bash
+# Check Supabase CLI status
+supabase status
+
+# Check migration status
+supabase migration list
+
+# Check connection status
+supabase status
+
+# Validate project setup
+supabase projects list
+```
+
+## 📈 Monitoring
+
+### GitHub Actions
+- Monitor deployment status in Actions tab
+- Check logs for detailed error information
+- Review health check results
+
+### Supabase Dashboard
+- Check database status in Database section
+- Review deployment history in Settings → GitHub
+
+## 🔒 Security Considerations
+
+1. **Never commit secrets** to the repository
+2. **Use environment-specific secrets** (PROD/DEV suffixes)
+3. **Rotate access tokens** regularly
+4. **Review deployment logs** for sensitive information
+5. **Enable branch protection** on main branch
+6. **Database URLs contain sensitive credentials** - keep them secure
+
+## 🔄 Rollback Procedures
 
 ### Database Rollback
 1. Create new migration to revert changes
@@ -210,30 +293,62 @@ supabase/functions/
 3. Test thoroughly
 4. Deploy to production
 
-### Function Rollback
-1. Revert function code changes
-2. Deploy previous version
-3. Verify functionality
-
 ### Emergency Rollback
 1. Use Supabase Dashboard to restore from backup
 2. Deploy known good migration
 3. Verify system stability
 
-## Security Considerations
+## 📚 Best Practices
 
-- All deployments require proper authentication
-- Production deployments require manual approval
-- Secrets are stored in GitHub Secrets
-- RLS policies protect data access
-- Environment-specific configurations prevent cross-contamination
+### 1. Branch Strategy
+- Use `main` for production
+- Use `develop` for staging
+- Use `feature/*` for development
+- Never push directly to `main`
 
-## Best Practices
+### 2. Migration Management
+- Always test migrations locally first
+- Use descriptive migration names
+- Keep migrations small and focused
+- Never modify existing migrations
 
-1. **Always test in develop first**
-2. **Use descriptive commit messages**
-3. **Review PRs thoroughly before merging**
-4. **Monitor deployments for errors**
-5. **Keep migration files small and focused**
-6. **Document breaking changes**
-7. **Use feature flags for major changes**
+### 4. Security
+- Never commit API keys to repository
+- Use environment variables for secrets
+- Enable branch protection rules
+- Review deployment logs regularly
+
+### 5. General
+- **Always test in develop first**
+- **Use descriptive commit messages**
+- **Review PRs thoroughly before merging**
+- **Monitor deployments for errors**
+- **Keep migration files small and focused**
+- **Document breaking changes**
+- **Use feature flags for major changes**
+
+## 📚 Quick Commands Reference
+
+```bash
+# Link to project
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Deploy database changes
+supabase db push
+
+# Check status
+supabase status
+
+# List migrations
+supabase migration list
+```
+
+## 🔗 Useful Links
+
+- [Supabase GitHub Integration Docs](https://supabase.com/docs/guides/platform/github-integration)
+- [Supabase CLI Docs](https://supabase.com/docs/guides/cli)
+- [Database Migrations Docs](https://supabase.com/docs/guides/cli/migrations)
+
+---
+
+*This deployment system provides automated, reliable deployments with comprehensive validation and health checks for both development and production environments.*

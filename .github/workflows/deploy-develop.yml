@@ -65,6 +65,13 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
+        if [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_DB_PASSWORD"
+          exit 1
+        else
+          echo "✅ SUPABASE_DB_PASSWORD is set"
+        fi
+        
         echo "✅ All required environment variables are set"
         
     - name: Link to development project
@@ -78,9 +85,12 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       run: |
         cd supabase
         echo "Deploying database migrations to development..."
+        # Set the database password for the connection
+        export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
         supabase db push
         
     - name: Deploy Edge Functions

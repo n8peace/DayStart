@@ -80,17 +80,21 @@ DayStart/
 Create a `.env` file in the root directory:
 
 ```env
-# Supabase (Main Environment)
-SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_MAIN_PROJECT=your_supabase_main_project
+# Supabase (Development Environment)
+SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
+SUPABASE_ANON_KEY=your_development_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_development_service_role_key
+SUPABASE_DEVELOP_PROJECT=epqiarnkhzabggxiltci
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_DB_PASSWORD=your_database_password
 
-# Supabase (Develop Environment - uncomment to use)
-# SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
-# SUPABASE_ANON_KEY=your_supabase_anon_key
-# SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-# SUPABASE_DEVELOP_PROJECT=your_supabase_develop_project
+# Supabase (Production Environment)
+# SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
+# SUPABASE_ANON_KEY=your_production_anon_key
+# SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
+# SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
+# SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+# SUPABASE_DB_PASSWORD=your_database_password
 
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
