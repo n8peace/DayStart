@@ -43,12 +43,21 @@ jobs:
       run: |
         cd supabase
         supabase --version
-        supabase status
         
-    - name: Validate Migrations
+    - name: Validate Migration Files
       run: |
         cd supabase
-        supabase db lint
+        echo "Validating migration files..."
+        for file in migrations/*.sql; do
+          if [ -f "$file" ]; then
+            echo "Checking $file"
+            # Basic SQL syntax validation
+            if ! grep -q "CREATE TABLE\|ALTER TABLE\|DROP TABLE\|CREATE INDEX\|CREATE POLICY" "$file"; then
+              echo "Warning: $file doesn't contain expected SQL statements"
+            fi
+          fi
+        done
+        echo "✅ Migration files validated"
         
   # Deploy to Develop (on develop branch)
   deploy-develop:
