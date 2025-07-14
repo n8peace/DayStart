@@ -59,11 +59,11 @@ jobs:
         done
         echo "✅ Migration files validated"
         
-  # Deploy to Develop (on develop branch)
+  # Deploy to Develop (on develop branch) - DISABLED: Using Supabase native integration
   deploy-develop:
-    name: Deploy to Develop Environment
+    name: Deploy to Develop Environment (DISABLED)
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: false  # Disabled - using Supabase native GitHub integration
     needs: [ios-ci, supabase-ci]
     environment: develop
     
@@ -76,22 +76,19 @@ jobs:
       with:
         version: latest
         
-    - name: Deploy to Supabase Develop
+    - name: Deploy to Supabase Develop (DISABLED)
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
-        cd supabase
-        echo "Linking to develop project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
-        supabase link --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
-        echo "Deploying database migrations..."
-        supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }}
-        echo "Deploying edge functions..."
-        supabase functions deploy
+        echo "🚫 Supabase deployment disabled - using native GitHub integration"
+        echo "✅ Supabase will automatically deploy from GitHub integration"
+        echo "📋 Check Supabase Dashboard → Settings → GitHub for deployment status"
         
     - name: Notify Deploy Success
       run: |
-        echo "✅ Successfully deployed to develop environment"
-        echo "Project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
+        echo "✅ Supabase native integration enabled"
+        echo "📋 Check Supabase Dashboard → Settings → GitHub for deployment status"
+        echo "🔗 Project: ${{ env.SUPABASE_DEVELOP_PROJECT }}"
         
   # Deploy to Production (manual trigger only)
   deploy-production:
