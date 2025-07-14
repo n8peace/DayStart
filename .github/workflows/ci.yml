@@ -7,8 +7,8 @@ on:
     branches: [ develop, main ]
 
 env:
-  SUPABASE_DEVELOP_PROJECT: epqiarnkhzabggxiltci
-  SUPABASE_MAIN_PROJECT: yqbrfznixefqqhnvingu
+  SUPABASE_DEVELOP_PROJECT: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}
+  SUPABASE_MAIN_PROJECT: ${{ secrets.SUPABASE_MAIN_PROJECT }}
 
 jobs:
   # iOS App CI (Disabled for now - focus on backend first)

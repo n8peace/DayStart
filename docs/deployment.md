@@ -97,6 +97,7 @@ SUPABASE_ACCESS_TOKEN=your_develop_access_token
 SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
 SUPABASE_ANON_KEY=your_develop_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_develop_service_role_key
+SUPABASE_DEVELOP_PROJECT=epqiarnkhzabggxiltci
 ```
 
 #### Production Environment Secrets
@@ -105,6 +106,7 @@ SUPABASE_ACCESS_TOKEN=your_production_access_token
 SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
 SUPABASE_ANON_KEY=your_production_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
+SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
 ```
 
 ### Environment Variables

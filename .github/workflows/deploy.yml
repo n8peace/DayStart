@@ -17,7 +17,7 @@ on:
         default: false
 
 env:
-  SUPABASE_MAIN_PROJECT: yqbrfznixefqqhnvingu
+  SUPABASE_MAIN_PROJECT: ${{ secrets.SUPABASE_MAIN_PROJECT }}
 
 jobs:
   validate-deployment:
