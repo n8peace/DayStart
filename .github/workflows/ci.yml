@@ -87,8 +87,15 @@ jobs:
           exit 1
         fi
         echo "✅ Database URL is available"
+        
+        echo "🌐 Forcing IPv4 connections..."
+        export GODEBUG=netdns=go
+        
+        echo "🔍 Testing network connectivity..."
+        echo "Database URL format: $(echo ${{ secrets.SUPABASE_DEVELOP_DB_URL }} | cut -d'@' -f2 | cut -d'/' -f1)"
+        
         echo "Deploying database migrations using direct database URL..."
-        supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }}
+        supabase db push --db-url ${{ secrets.SUPABASE_DEVELOP_DB_URL }} --dns-resolver https --debug
         echo "Deploying edge functions..."
         supabase functions deploy --project-ref ${{ env.SUPABASE_DEVELOP_PROJECT }}
         
