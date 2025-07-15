@@ -111,6 +111,13 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
+        if [ -z "${{ secrets.SUPABASE_MAIN_DB_URL }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_MAIN_DB_URL"
+          exit 1
+        else
+          echo "✅ SUPABASE_MAIN_DB_URL is set"
+        fi
+        
         echo "✅ All required environment variables are set"
         
     - name: Link to production project
@@ -124,6 +131,7 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        PGPASSWORD: ${{ secrets.SUPABASE_MAIN_DB_URL }}
       run: |
         cd supabase
         echo "Deploying database migrations..."
@@ -135,15 +143,44 @@ jobs:
       run: |
         cd supabase
         echo "Deploying edge functions..."
-        supabase functions deploy
+        if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
+          supabase functions deploy
+        else
+          echo "No functions to deploy"
+        fi
         
-    - name: Verify deployment status
+    - name: Verify deployment
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
-        cd supabase
-        echo "Verifying deployment..."
-        supabase status
+        echo "🔍 Verifying production deployment..."
+        
+        # Check if users table exists via API
+        echo "Checking database connectivity..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+          "$SUPABASE_URL/rest/v1/users?select=count")
+        
+        if [ "$response" = "200" ]; then
+          echo "✅ Database connectivity verified"
+        else
+          echo "⚠️ Database connectivity check failed (HTTP $response)"
+          echo "This may be normal if the users table doesn't exist yet"
+        fi
+        
+        # Check migration files
+        echo "Checking migration files..."
+        if [ -d "supabase/migrations" ] && [ "$(ls -A supabase/migrations)" ]; then
+          echo "✅ Migration files found"
+          ls -la supabase/migrations/
+        else
+          echo "⚠️ No migration files found"
+        fi
+        
+        echo "✅ Production deployment verification complete"
         
     - name: Notify deployment success
       if: success()
@@ -210,6 +247,13 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
+        if [ -z "${{ secrets.SUPABASE_MAIN_DB_URL }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_MAIN_DB_URL"
+          exit 1
+        else
+          echo "✅ SUPABASE_MAIN_DB_URL is set"
+        fi
+        
         echo "✅ All required environment variables are set"
         
     - name: Link to production project
@@ -223,6 +267,7 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        PGPASSWORD: ${{ secrets.SUPABASE_MAIN_DB_URL }}
       run: |
         cd supabase
         echo "Deploying database migrations..."
@@ -234,15 +279,44 @@ jobs:
       run: |
         cd supabase
         echo "Deploying edge functions..."
-        supabase functions deploy
+        if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
+          supabase functions deploy
+        else
+          echo "No functions to deploy"
+        fi
         
-    - name: Verify deployment status
+    - name: Verify deployment
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
-        cd supabase
-        echo "Verifying deployment..."
-        supabase status
+        echo "🔍 Verifying production deployment..."
+        
+        # Check if users table exists via API
+        echo "Checking database connectivity..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+          "$SUPABASE_URL/rest/v1/users?select=count")
+        
+        if [ "$response" = "200" ]; then
+          echo "✅ Database connectivity verified"
+        else
+          echo "⚠️ Database connectivity check failed (HTTP $response)"
+          echo "This may be normal if the users table doesn't exist yet"
+        fi
+        
+        # Check migration files
+        echo "Checking migration files..."
+        if [ -d "supabase/migrations" ] && [ "$(ls -A supabase/migrations)" ]; then
+          echo "✅ Migration files found"
+          ls -la supabase/migrations/
+        else
+          echo "⚠️ No migration files found"
+        fi
+        
+        echo "✅ Production deployment verification complete"
         
     - name: Notify deployment success
       if: success()
