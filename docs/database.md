@@ -10,13 +10,13 @@
 5. `logs` - System-wide logging and monitoring
 
 ### **Deployment Status**
-- ✅ `users` - Deployed to develop branch
-- ✅ `content_blocks` - Deployed to develop branch  
-- ✅ `user_preferences` - Deployed to develop branch
-- ✅ `logs` - Deployed to develop branch
-- ✅ `user_weather_data` - Deployed to develop branch
+- ✅ `users` - Deployed to main branch (production)
+- ✅ `content_blocks` - Deployed to main branch (production)
+- ✅ `user_preferences` - Deployed to main branch (production)
+- ✅ `logs` - Deployed to main branch (production)
+- ✅ `user_weather_data` - Deployed to main branch (production)
 
-**Note**: All tables are currently deployed to the `develop` branch only. Production deployment to `main` branch will occur when ready for release.
+**Note**: All tables are now deployed to both `develop` and `main` branches. Production environment is live and ready for iOS app development.
 
 ## 📋 Table Definitions
 
@@ -38,7 +38,7 @@
 - Users can only access their own data
 
 ### **2. content_blocks Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -116,7 +116,7 @@
 - Service role can read/write all content for background jobs
 
 ### **3. user_preferences Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -141,7 +141,7 @@
 - Service role can read/write all preferences for background jobs
 
 ### **4. logs Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -190,7 +190,7 @@
 - Users cannot write logs (insert/update/delete) - only system can
 
 ### **5. user_weather_data Table**
-**Status**: ✅ Deployed
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
