@@ -89,6 +89,17 @@ jobs:
         echo "Attempting database migration deployment..."
         supabase db push
         
+    - name: Remove Legacy Functions
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "Removing legacy functions..."
+        # Remove legacy functions that are no longer needed
+        supabase functions delete generate-message --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "generate-message not found or already removed"
+        supabase functions delete test-voice --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "test-voice not found or already removed"
+        echo "Legacy function removal complete"
+        
     - name: Deploy Edge Functions
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
