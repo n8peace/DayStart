@@ -113,7 +113,7 @@ serve(async (req) => {
         holiday_data: holidayData,
         holiday_error: holidayError
       },
-      status: holidayError ? 'content_ready' : 'content_ready', // Still ready even with API failure
+      status: 'pending', // Still pending even with API failure
       content_priority: 1,
       expiration_date: expirationDateStr,
       language_code: 'en-US'

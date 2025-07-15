@@ -130,7 +130,7 @@ serve(async (req) => {
         espn_error: espnError,
         sports_events: sportsEvents
       },
-      status: (sportsDbError && espnError) ? 'content_failed' : 'content_ready',
+      status: (sportsDbError && espnError) ? 'failed' : 'pending',
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'

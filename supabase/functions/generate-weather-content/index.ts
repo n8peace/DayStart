@@ -126,7 +126,7 @@ serve(async (req) => {
             sunrise: sunrise,
             sunset: sunset
           },
-          status: 'content_ready',
+          status: 'pending',
           content_priority: 2,
           expiration_date: expirationDateStr,
           language_code: 'en-US'

@@ -76,7 +76,7 @@ serve(async (req) => {
             encouragement_type: encouragementType,
             previous_messages: previousMessages
           },
-          status: 'content_ready',
+          status: 'pending',
           content_priority: 6,
           expiration_date: expirationDateStr,
           language_code: 'en-US'
