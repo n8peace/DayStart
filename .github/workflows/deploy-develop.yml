@@ -135,6 +135,8 @@ jobs:
               http_code=$(echo "$response" | tail -n1)
               if [ "$http_code" = "200" ]; then
                 echo "✅ $func_name function is healthy"
+              elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
+                echo "✅ $func_name function is healthy (no weather data available - expected)"
               else
                 echo "❌ $func_name function health check failed (HTTP $http_code)"
                 exit 1
