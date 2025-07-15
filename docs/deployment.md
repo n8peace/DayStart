@@ -132,7 +132,7 @@ port = 54325
 
 ## 🚀 Workflow Files
 
-### Production Deployment (`.github/workflows/deploy.yml`)
+### Production Deployment (`.github/workflows/deploy-main.yml`)
 - **Automatic**: Triggers on push to `main` branch
 - **Manual**: Workflow dispatch with confirmation dialog
 - **Validation**: Branch validation, environment variable checks

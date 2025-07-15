@@ -57,7 +57,7 @@
   4. API-based health checks
   5. Success notification
 
-### Production Workflow (`.github/workflows/deploy.yml`)
+### Production Workflow (`.github/workflows/deploy-main.yml`)
 - **Trigger**: Push to `main` branch + manual dispatch
 - **Process**: Same as development with additional confirmation dialog
 
