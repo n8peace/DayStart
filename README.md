@@ -23,11 +23,11 @@ DayStart transforms the morning routine by combining:
 ```
 DayStart/
 ├── supabase/          # Supabase project files
-│   ├── functions/     # Edge functions
-│   ├── migrations/    # Database migrations
+│   ├── migrations/    # Database migrations (5 tables deployed)
 │   └── config.toml    # Supabase configuration
 ├── docs/              # Project documentation
 ├── .github/           # GitHub Actions workflows
+├── deploy-tables.sh   # Database deployment script
 ├── .env               # Local environment file (gitignored)
 └── README.md          # This file
 ```
@@ -51,8 +51,10 @@ DayStart/
    # Edit .env with your API keys
    ```
 
-2. **iOS App Setup** (Coming Soon)
+2. **iOS App Setup** (Early Development)
    ```bash
+   # iOS app development is in early planning phase
+   # Backend infrastructure is being established first
    # iOS app development will begin after backend is complete
    # cd ios-app
    # Open DayStart.xcodeproj in Xcode

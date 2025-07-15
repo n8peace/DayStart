@@ -11,10 +11,12 @@
 
 ### **Deployment Status**
 - ✅ `users` - Deployed to develop branch
-- ✅ `content_blocks` - Deployed to develop branch
+- ✅ `content_blocks` - Deployed to develop branch  
 - ✅ `user_preferences` - Deployed to develop branch
 - ✅ `logs` - Deployed to develop branch
-- ⏳ `user_weather_data` - Ready for deployment
+- ✅ `user_weather_data` - Deployed to develop branch
+
+**Note**: All tables are currently deployed to the `develop` branch only. Production deployment to `main` branch will occur when ready for release.
 
 ## 📋 Table Definitions
 
@@ -36,7 +38,7 @@
 - Users can only access their own data
 
 ### **2. content_blocks Table**
-**Status**: ⏳ Ready for deployment
+**Status**: ✅ Deployed to develop branch
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -114,7 +116,7 @@
 - Service role can read/write all content for background jobs
 
 ### **3. user_preferences Table**
-**Status**: ⏳ Ready for deployment
+**Status**: ✅ Deployed to develop branch
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -139,7 +141,7 @@
 - Service role can read/write all preferences for background jobs
 
 ### **4. logs Table**
-**Status**: ⏳ Ready for deployment
+**Status**: ✅ Deployed to develop branch
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -188,7 +190,7 @@
 - Users cannot write logs (insert/update/delete) - only system can
 
 ### **5. user_weather_data Table**
-**Status**: ⏳ Ready for deployment
+**Status**: ✅ Deployed
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -332,11 +334,12 @@ CREATE POLICY "Service role has full access" ON logs
 - ✅ Created `users` table
 - ✅ Applied basic RLS policies
 
-### **2025-01-XX** (Pending)
-- ⏳ Create `content_blocks` table
-- ⏳ Create `user_preferences` table  
-- ⏳ Create `logs` table
-- ⏳ Apply comprehensive RLS policies
+### **2025-01-XX** (Completed)
+- ✅ Create `content_blocks` table
+- ✅ Create `user_preferences` table  
+- ✅ Create `logs` table
+- ✅ Create `user_weather_data` table
+- ✅ Apply comprehensive RLS policies
 
 ## 🔍 Monitoring & Maintenance
 
