@@ -97,7 +97,7 @@ jobs:
         echo "Deploying edge functions to development..."
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          supabase functions deploy --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}
+          supabase functions deploy
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
         fi
