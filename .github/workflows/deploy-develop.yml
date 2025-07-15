@@ -78,9 +78,15 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       run: |
         cd supabase
         echo "Deploying database migrations to development..."
+        
+        # Set the database password for the connection
+        export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
+        
+        echo "Attempting database migration deployment..."
         supabase db push
         
     - name: Deploy Edge Functions
