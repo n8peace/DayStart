@@ -26,7 +26,6 @@ DayStart/
 │   ├── functions/     # Edge functions
 │   ├── migrations/    # Database migrations
 │   └── config.toml    # Supabase configuration
-├── scripts/           # Helper scripts for local dev, migrations, audio testing
 ├── docs/              # Project documentation
 ├── .github/           # GitHub Actions workflows
 ├── .env               # Local environment file (gitignored)
@@ -126,25 +125,20 @@ APP_ENV=development
 - **Voice Customization**: Multiple voice options via ElevenLabs
 - **Weather Integration**: Local weather in morning messages
 - **News Briefing**: Curated news based on user interests
+- **Morning Stretch**: Guided stretching routines to start the day
+- **Morning Challenge**: Math problems or puzzles to ensure you're fully awake
+- **Sports Highlights**: Latest sports updates and scores
+- **Market Highlights**: Stock market and financial news
+- **Philosophical/Religious Encouragement**: Inspirational quotes and spiritual guidance
+- **Reminders**: Personalized task and appointment reminders
+- **Outro Encouragement**: Motivational closing messages
 - **Offline Support**: Core functionality works offline
 
-## 🔧 Available Scripts
 
-```bash
-# Database operations
-./scripts/migrate.sh          # Run database migrations
-./scripts/seed.sh             # Seed test data
-
-# Audio testing
-./scripts/test-audio.sh       # Test ElevenLabs integration
-
-# Development helpers
-./scripts/setup-dev.sh        # Complete dev environment setup
-./scripts/clean.sh            # Clean build artifacts
-```
 
 ## 📚 Documentation
 
+- [iOS App Features](docs/ios-app.md) - Complete iOS app feature documentation
 - [Supabase Setup](docs/supabase-setup.md) - Initial setup and configuration
 - [Deployment Guide](docs/deployment.md) - CI/CD and deployment workflows
 - [Development Guide](docs/development.md) - Development workflow and best practices

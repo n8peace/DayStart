@@ -71,14 +71,61 @@ graph LR
 4. CI pipeline runs automatically
 5. After approval and merge, automatic deployment to develop environment
 
+## 🚀 Daily Development Workflow
+
+### **Iterative Development Process**
+The beauty of this setup is that you can iterate rapidly on `develop`:
+
+```bash
+# Morning: Start working
+git checkout develop
+git pull origin develop
+
+# Make changes and test locally
+# ... your development work ...
+
+# Deploy to development environment
+git push origin develop  # → Automatic deployment to Supabase dev
+
+# Test in development environment
+# ... test your changes ...
+
+# Afternoon: More iterations
+# Make more changes...
+git push origin develop  # → Automatic deployment to Supabase dev
+
+# Test again...
+git push origin develop  # → Automatic deployment to Supabase dev
+
+# Evening: Ready for production
+# Create PR: develop → main
+# Review & merge → Automatic deployment to production
+```
+
+### **Key Benefits:**
+- ✅ **Every push to `develop`** automatically deploys to development environment
+- ✅ **No manual deployment steps** during development
+- ✅ **All changes accumulate** in the `develop` branch
+- ✅ **When ready**, promote entire tested state to production
+- ✅ **No cherry-picking needed** - you get everything that was working
+
+### **What Happens on Each Push to `develop`:**
+1. **Automatic deployment** to Supabase development environment
+2. **Database migrations** applied
+3. **Edge functions** deployed (if any)
+4. **Health checks** run
+5. **Success/failure notifications** sent
+
 ### Production Workflow
+**When you're satisfied with all changes in `develop`:**
+
 ```mermaid
 graph LR
     A[develop] --> B[PR to main]
     B --> C[CI Checks Pass]
     C --> D[Manual Approval]
     D --> E[Merge to main]
-    E --> F[Manual Production Deploy]
+    E --> F[Auto Deploy to Production]
 ```
 
 **Steps:**
@@ -86,7 +133,7 @@ graph LR
 2. CI pipeline runs automatically
 3. Manual review and approval required
 4. Merge to `main` branch
-5. Manual production deployment triggered
+5. **Automatic production deployment** (includes ALL changes from develop)
 
 ## 📋 Required Repository Structure
 

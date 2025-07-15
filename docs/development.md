@@ -174,7 +174,6 @@ DayStart/
 │   ├── functions/         # Edge functions
 │   ├── migrations/        # Database migrations
 │   └── config.toml        # Supabase configuration
-├── scripts/               # Helper scripts
 ├── docs/                  # Documentation
 ├── .github/               # GitHub Actions
 └── README.md              # Project overview
@@ -197,19 +196,7 @@ supabase stop
 supabase logs
 ```
 
-### **2. Helper Scripts**
-```bash
-# Database operations
-./scripts/migrate.sh          # Run migrations
-./scripts/seed.sh             # Seed test data
 
-# Audio testing
-./scripts/test-audio.sh       # Test ElevenLabs integration
-
-# Development helpers
-./scripts/setup-dev.sh        # Complete dev environment setup
-./scripts/clean.sh            # Clean build artifacts
-```
 
 ### **3. Environment Management**
 ```bash
