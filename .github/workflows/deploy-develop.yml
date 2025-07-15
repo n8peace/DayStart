@@ -65,9 +65,6 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
-        # Note: SUPABASE_DB_PASSWORD not required when using API deployment
-        echo "ℹ️ Using API-based deployment (no direct database connection required)"
-        
         echo "✅ All required environment variables are set"
         
     - name: Link to development project
@@ -78,39 +75,13 @@ jobs:
         echo "Linking to development project: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
         supabase link --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}
         
-        # Verify the link was successful
-        echo "Verifying project link..."
-        supabase projects list
-        
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
         echo "Deploying database migrations to development..."
-        echo "Using Supabase API for migration deployment..."
-        
-        # Check if we have migrations to deploy
-        if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
-          echo "Found migrations to deploy:"
-          ls -la migrations/
-          
-          # Deploy using linked project approach
-          echo "Attempting to deploy migrations to linked project..."
-          if ! supabase db push --linked; then
-            echo "⚠️ Migration deployment failed"
-            echo "This may be due to network restrictions in CI/CD environment"
-            echo "Please run migrations manually in the Supabase Dashboard:"
-            echo "1. Go to https://supabase.com/dashboard/project/${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
-            echo "2. Navigate to SQL Editor"
-            echo "3. Run the migration SQL manually"
-            echo "Migration files to run:"
-            ls -la migrations/
-            exit 0  # Don't fail the workflow, just warn
-          fi
-        else
-          echo "⚠️ No migrations found to deploy"
-        fi
+        supabase db push
         
     - name: Deploy Edge Functions
       env:
@@ -183,33 +154,9 @@ jobs:
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
-        echo "Verifying development deployment..."
-        
-        # Check if we can access the Supabase API
-        echo "Testing Supabase API connectivity..."
-        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/ \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json")
-        
-        http_code=$(echo "$response" | tail -n1)
-        if [ "$http_code" = "200" ]; then
-          echo "✅ Supabase API is accessible"
-        else
-          echo "⚠️ Supabase API connectivity check failed (HTTP $http_code)"
-          echo "This may be normal for a fresh deployment"
-        fi
-        
-        # Check migration status via API
-        echo "Checking migration status..."
         cd supabase
-        if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
-          echo "✅ Migrations directory contains files"
-          ls -la migrations/
-        else
-          echo "⚠️ No migrations found"
-        fi
-        
-        echo "✅ Deployment verification complete"
+        echo "Verifying development deployment..."
+        supabase status
         
     - name: Notify deployment success
       if: success()
