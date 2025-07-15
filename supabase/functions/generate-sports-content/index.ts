@@ -149,8 +149,9 @@ serve(async (req) => {
       .insert({
         event_type: 'content_generated',
         status: 'success',
-                  message: 'Sports content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'sports', date: utcDate }
+        message: 'Sports content generated successfully',
+        content_block_id: data.id,
+        metadata: { content_type: 'sports', date: utcDate }
       })
 
     return new Response(

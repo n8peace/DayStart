@@ -149,8 +149,8 @@ serve(async (req) => {
             event_type: 'content_generated',
             status: 'success',
             message: 'Weather content generated successfully',
+            content_block_id: data.id,
             metadata: { 
-              content_block_id: data.id, 
               content_type: 'weather', 
               date: utcDate,
               location_key: weather.location_key 

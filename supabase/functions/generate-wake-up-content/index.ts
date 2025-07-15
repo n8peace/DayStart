@@ -138,7 +138,8 @@ serve(async (req) => {
         event_type: 'content_generated',
         status: 'success',
         message: 'Wake-up content generated successfully',
-        metadata: { content_block_id: data.id, content_type: 'wake_up', date: tomorrowDate }
+        content_block_id: data.id,
+        metadata: { content_type: 'wake_up', date: tomorrowDate }
       })
 
     return new Response(

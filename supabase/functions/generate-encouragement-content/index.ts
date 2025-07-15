@@ -103,8 +103,8 @@ serve(async (req) => {
             event_type: 'content_generated',
             status: 'success',
             message: `${encouragementType} encouragement content generated successfully`,
+            content_block_id: data.id,
             metadata: { 
-              content_block_id: data.id, 
               content_type: 'encouragement', 
               encouragement_type: encouragementType,
               date: tomorrowDate 

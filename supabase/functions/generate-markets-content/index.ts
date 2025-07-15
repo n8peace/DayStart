@@ -160,8 +160,9 @@ serve(async (req) => {
       .insert({
         event_type: 'content_generated',
         status: 'success',
-                  message: 'Markets content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'markets', date: utcDate }
+        message: 'Markets content generated successfully',
+        content_block_id: data.id,
+        metadata: { content_type: 'markets', date: utcDate }
       })
 
     return new Response(

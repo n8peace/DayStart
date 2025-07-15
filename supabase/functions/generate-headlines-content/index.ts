@@ -175,7 +175,8 @@ serve(async (req) => {
           event_type: 'content_generated',
           status: 'success',
           message: 'Headlines content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'headlines', date: utcDate }
+          content_block_id: data.id,
+          metadata: { content_type: 'headlines', date: utcDate }
         })
     } catch (logError) {
       console.error('Failed to log successful generation:', logError)
