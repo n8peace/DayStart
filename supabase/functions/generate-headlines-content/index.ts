@@ -79,23 +79,28 @@ serve(async (req) => {
       gnewsError = `GNews API error: ${error.message}`
     }
 
-    // Log API calls
-    await supabaseClient
-      .from('logs')
-      .insert([
-        {
-          event_type: 'api_call',
-          status: newsApiError ? 'error' : 'success',
-          message: newsApiError || 'News API data fetched successfully',
-          metadata: { api: 'news_api' }
-        },
-        {
-          event_type: 'api_call',
-          status: gnewsError ? 'error' : 'success',
-          message: gnewsError || 'GNews API data fetched successfully',
-          metadata: { api: 'gnews_api' }
-        }
-      ])
+    // Log API calls (with error handling)
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert([
+          {
+            event_type: 'api_call',
+            status: newsApiError ? 'error' : 'success',
+            message: newsApiError || 'News API data fetched successfully',
+            metadata: { api: 'news_api' }
+          },
+          {
+            event_type: 'api_call',
+            status: gnewsError ? 'error' : 'success',
+            message: gnewsError || 'GNews API data fetched successfully',
+            metadata: { api: 'gnews_api' }
+          }
+        ])
+    } catch (logError) {
+      console.error('Failed to log API calls:', logError)
+      // Continue execution even if logging fails
+    }
 
     // Create content summary
     let content = 'Top Headlines: '
@@ -147,15 +152,20 @@ serve(async (req) => {
       throw error
     }
 
-    // Log successful content generation
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: 'content_generated',
-        status: 'success',
-        message: 'Headlines content generated successfully',
-        metadata: { content_block_id: data.id, content_type: 'headlines', date: tomorrowDate }
-      })
+    // Log successful content generation (with error handling)
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generated',
+          status: 'success',
+          message: 'Headlines content generated successfully',
+          metadata: { content_block_id: data.id, content_type: 'headlines', date: tomorrowDate }
+        })
+    } catch (logError) {
+      console.error('Failed to log successful generation:', logError)
+      // Continue execution even if logging fails
+    }
 
     return new Response(
       JSON.stringify({ 
