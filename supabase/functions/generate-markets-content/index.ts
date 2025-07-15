@@ -140,7 +140,7 @@ serve(async (req) => {
         business_news_error: businessNewsError,
         market_info: marketInfo
       },
-      status: (yahooError && businessNewsError) ? 'failed' : 'pending',
+      status: (yahooError && businessNewsError) ? 'content_failed' : 'content_ready',
       content_priority: 5,
       expiration_date: expirationDateStr,
       language_code: 'en-US'

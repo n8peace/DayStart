@@ -63,7 +63,8 @@ serve(async (req) => {
         .select('content')
         .eq('content_type', 'wake_up')
         .eq('date', yesterdayDate)
-        .eq('status', 'ready')
+        .in('status', ['ready', 'content_ready'])
+        .not('status', 'content_failed')
         .limit(1)
         .single()
 
@@ -113,7 +114,7 @@ serve(async (req) => {
         holiday_data: holidayData,
         holiday_error: holidayError
       },
-      status: 'pending', // Still pending even with API failure
+      status: 'content_ready', // Content ready after successful generation
       content_priority: 1,
       expiration_date: expirationDateStr,
       language_code: 'en-US'

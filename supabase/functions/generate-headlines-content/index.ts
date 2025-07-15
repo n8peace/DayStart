@@ -153,7 +153,7 @@ serve(async (req) => {
         gnews_error: gnewsError,
         headlines: headlines
       },
-      status: (newsApiError && gnewsError) ? 'failed' : 'pending',
+      status: (newsApiError && gnewsError) ? 'content_failed' : 'content_ready',
       content_priority: 3,
       expiration_date: expirationDateStr,
       language_code: 'en-US'

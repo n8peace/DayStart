@@ -10,11 +10,31 @@ This document outlines the proposed edge function architecture for DayStart's co
 Each function handles data fetching and content generation for a specific content type:
 
 1. **`generate-wake-up-content`** - General wake-up messages and greetings
+   - Creates 1 row for tomorrow's date (voice assigned during script generation)
+   - Duration: 90 seconds
+   - Content: Today's date, yesterday's message (to avoid repetition), holiday from Abstracts API
+   
 2. **`generate-weather-content`** - Weather data and forecasts
-3. **`generate-markets-content`** - Financial market updates
-4. **`generate-headlines-content`** - News headlines and summaries
-5. **`generate-sports-content`** - Sports updates and highlights
+   - Creates 1 row (voice assigned during script generation)
+   - Content: City, state, highs/lows, weather status, sunrise/sunset from user_weather_data table
+   - Stores user_weather_data.id in parameters JSONB for future trigger reference
+   
+3. **`generate-headlines-content`** - News headlines and summaries
+   - Creates 1 row (voice assigned during script generation)
+   - Content: News from News API and GNews API
+   
+4. **`generate-sports-content`** - Sports updates and highlights
+   - Creates 1 row (voice assigned during script generation)
+   - Content: Sports data from SportsDB and ESPN APIs for today's and tomorrow's events
+   
+5. **`generate-markets-content`** - Financial market updates
+   - Creates 1 row (voice assigned during script generation)
+   - Content: Market data from Yahoo Finance API (via Rapid API) and business news from News API
+   
 6. **`generate-encouragement-content`** - Motivational content
+   - Creates 5 rows (1 per type, voice assigned during script generation)
+   - Types: Christian, Stoic, Muslim, Jewish, General
+   - Content: Each type includes previous 5 encouragements from that specific category (stored in parameters) to avoid repetition
 
 ### **Unified Processing Functions (3 total)**
 Core functions that handle the generation pipeline:
@@ -47,28 +67,29 @@ graph TD
 graph TD
     A[Content Functions] --> B[Query pending by content_type]
     B --> C[Fetch external data]
-    C --> D[Update with data + parameters]
-    D --> E[Status = 'data_ready']
+    C --> D[Update with content + parameters]
+    D --> E[Status = 'content_ready' or 'content_failed']
 ```
 
 **Each Content Function:**
 - Queries `content_blocks` where `status = 'pending'` AND `content_type = 'specific_type'`
 - Fetches relevant external data via APIs
-- Updates record with fetched data in `parameters` JSONB
-- Sets status to `data_ready`
+- Updates record with text summary in `content` field and API data in `parameters` JSONB
+- Sets status to `content_ready` (partial failures OK) or `content_failed` (complete failure)
+- Logs all API calls and failures to `logs` table
 
 **Data Sources:**
-- **Wake Up**: None (template-based)
+- **Wake Up**: Abstracts API (holidays)
 - **Weather**: Weather Kit API (via user_weather_data cache)
-- **News**: NewsAPI or similar
-- **Sports**: ESPN API or similar
-- **Markets**: Alpha Vantage or similar
+- **News**: News API + GNews API
+- **Sports**: SportsDB API (eventsday.php) + ESPN API
+- **Markets**: Yahoo Finance API (via Rapid API) + News API (business)
 - **Encouragement**: No external data needed
 
 ### **Phase 3: Script Generation**
 ```mermaid
 graph TD
-    A[generate-script] --> B[Query data_ready records]
+    A[generate-script] --> B[Query content_ready records]
     B --> C[Process by content_type]
     C --> D[Send to GPT-4o]
     D --> E[Update with script]
@@ -76,7 +97,7 @@ graph TD
 ```
 
 **generate-script Function:**
-- Queries `content_blocks` where `status = 'data_ready'`
+- Queries `content_blocks` where `status = 'content_ready'`
 - Processes each content type with appropriate GPT-4o prompts
 - Updates record with generated `script`
 - Sets `script_generated_at` timestamp
@@ -117,14 +138,14 @@ graph TD
 ## 📊 Content Type Processing
 
 ### **Shared Content (user_id = NULL)**
-| Content Type | Data Source | Generation Frequency | Expiration |
-|--------------|-------------|---------------------|------------|
-| `wake_up` | None (template-based) | Daily | 7 days |
-| `weather` | Weather Kit API | Hourly | 24 hours |
-| `headlines` | NewsAPI | 4 hours | 24 hours |
-| `sports` | ESPN API | 4 hours | 24 hours |
-| `markets` | Alpha Vantage | Hourly | 24 hours |
-| `encouragement` | None (template-based) | Daily | 7 days |
+| Content Type | Data Source | Generation Frequency | Expiration | Content Priority |
+|--------------|-------------|---------------------|------------|------------------|
+| `wake_up` | Abstracts API (holidays) | Daily | 72 hours | 1 |
+| `weather` | Weather Kit API (via user_weather_data) | Hourly | 72 hours | 2 |
+| `headlines` | News API + GNews API (general category) | 4 hours | 72 hours | 3 |
+| `sports` | SportsDB API (eventsday.php) + ESPN API | 4 hours | 72 hours | 4 |
+| `markets` | Yahoo Finance API (get-quotes) + News API (business) | Hourly | 72 hours | 5 |
+| `encouragement` | Template-based (5 types) | Daily | 72 hours | 6 |
 
 ### **User-Specific Content (user_id = specific)**
 | Content Type | Data Source | Generation Frequency | Expiration |
@@ -160,8 +181,9 @@ graph TD
 
 ### **Status Tracking**
 - **`pending`** → Initial state
-- **`data_fetching`** → Fetching external data
-- **`data_ready`** → Data fetched, ready for script generation
+- **`content_generating`** → Content generation in progress
+- **`content_ready`** → Content generated, ready for script generation (partial API failures OK)
+- **`content_failed`** → All APIs and content generation failed
 - **`script_generating`** → GPT-4o processing
 - **`script_generated`** → Script ready, waiting for audio
 - **`audio_generating`** → ElevenLabs processing
@@ -172,6 +194,8 @@ graph TD
 - **Template content** for failed generations
 - **Cached content** from previous successful generations
 - **Graceful degradation** when services are unavailable
+- **API failure handling**: Include "no data received" message in content
+- **Logging**: Record API failures in `logs` table for monitoring
 
 ## 📈 Performance Considerations
 
@@ -189,6 +213,18 @@ graph TD
 - **Function timeouts** set appropriately for each operation
 - **Memory usage** optimized for large content processing
 - **API rate limits** respected across all external services
+
+## 🎤 Voice Configuration
+
+### **ElevenLabs Voices**
+- **`voice_1`** - Female, meditative wake-up voice
+- **`voice_2`** - Male, drill sergeant voice
+- **`voice_3`** - Male, narrative voice
+
+### **Voice Assignment Strategy**
+- **Content Generation**: Creates single rows without voice assignment
+- **Script Generation**: Adds voice variants (voice_1, voice_2, voice_3) during script creation phase
+- **Future**: Each content type will have 3 voice variants for user variety
 
 ## 🔧 Configuration
 

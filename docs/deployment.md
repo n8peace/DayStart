@@ -199,6 +199,30 @@ Use timestamp format: `YYYYMMDDHHMMSS_description.sql`
 
 Example: `20240101120000_create_users_table.sql`
 
+## 📅 Recent Deployments
+
+### 2025-01-15: Content Generation Status Updates
+**Migration**: `20250101000008_add_content_ready_status.sql`
+
+**Changes:**
+- ✅ Added `content_ready` status for successful content generation
+- ✅ Added `content_failed` status for failed content generation
+- ✅ Updated all 6 content generation functions to use new statuses
+- ✅ Updated queries to exclude `content_failed` content when looking for previous content
+
+**Functions Updated:**
+1. `generate-wake-up-content` - Priority 1
+2. `generate-weather-content` - Priority 2  
+3. `generate-headlines-content` - Priority 3
+4. `generate-sports-content` - Priority 4
+5. `generate-markets-content` - Priority 5
+6. `generate-encouragement-content` - Priority 6
+
+**Status Flow:**
+- Success: `content_ready` status
+- Failure: `content_failed` status (or no content block created)
+- Previous content queries exclude `content_failed` status
+
 ## 🔍 Troubleshooting
 
 ### Common Issues

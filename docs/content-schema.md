@@ -99,6 +99,8 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 - `script_generated` - Script ready, waiting for audio generation
 - `audio_generating` - ElevenLabs is working on audio
 - `ready` - Complete and available for use
+- `content_ready` - Content generation completed successfully
+- `content_failed` - Content generation failed
 - `script_failed` - GPT-4o generation failed
 - `audio_failed` - ElevenLabs generation failed
 - `failed` - General failure state
@@ -320,10 +322,45 @@ System-wide logging for debugging, monitoring, analytics, and audit trails.
 
 ### **Content Generation Pipeline**
 1. **Record Creation**: Background job creates `pending` record for content
-2. **Script Generation**: GPT-4o generates content, updates `script_generated_at`
-3. **Audio Synthesis**: ElevenLabs converts script to audio, updates `audio_generated_at` and `duration_seconds`
-4. **Completion**: Status set to `ready` for app consumption
-5. **Logging**: Each step logged with appropriate event_type and status
+2. **Content Generation**: Content generation functions create content blocks with `content_ready` or `content_failed` status
+3. **Script Generation**: GPT-4o generates content, updates `script_generated_at`
+4. **Audio Synthesis**: ElevenLabs converts script to audio, updates `audio_generated_at` and `duration_seconds`
+5. **Completion**: Status set to `ready` for app consumption
+6. **Logging**: Each step logged with appropriate event_type and status
+
+### **Content Generation Functions**
+
+The system includes 6 content generation functions that run autonomously to create content blocks:
+
+#### **Function Priority Order (by content_priority)**
+1. **`generate-wake-up-content`** - Priority: **1** (Highest Priority)
+   - Wake-up messages and holiday information
+   - Status: `content_ready` on success, no content block on failure
+
+2. **`generate-weather-content`** - Priority: **2**
+   - Weather information for user locations
+   - Status: `content_ready` on success, no content block on failure
+
+3. **`generate-headlines-content`** - Priority: **3**
+   - News headlines from multiple sources (News API, GNews)
+   - Status: `content_ready` on success, `content_failed` on API failures
+
+4. **`generate-sports-content`** - Priority: **4**
+   - Sports events and scores (SportsDB, ESPN APIs)
+   - Status: `content_ready` on success, `content_failed` on API failures
+
+5. **`generate-markets-content`** - Priority: **5**
+   - Market data and business news (Yahoo Finance, News API)
+   - Status: `content_ready` on success, `content_failed` on API failures
+
+6. **`generate-encouragement-content`** - Priority: **6** (Lowest Priority)
+   - Encouragement messages (Christian, Stoic, Muslim, Jewish, General)
+   - Status: `content_ready` on success, no content block on failure
+
+#### **Status Flow**
+- **Success**: Functions set status to `content_ready` after successful content generation
+- **Failure**: Functions either set status to `content_failed` or don't create content blocks
+- **Previous Content**: Functions exclude `content_failed` status when looking for previous content to avoid repetition
 
 ### **Integration with Content Generation**
 ```mermaid

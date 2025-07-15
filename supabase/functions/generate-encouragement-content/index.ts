@@ -53,7 +53,8 @@ serve(async (req) => {
           .from('content_blocks')
           .select('content')
           .eq('content_type', 'encouragement')
-          .eq('status', 'ready')
+          .in('status', ['ready', 'content_ready'])
+          .not('status', 'content_failed')
           .contains('parameters', { encouragement_type: encouragementType })
           .order('created_at', { ascending: false })
           .limit(5)
@@ -76,7 +77,7 @@ serve(async (req) => {
             encouragement_type: encouragementType,
             previous_messages: previousMessages
           },
-          status: 'pending',
+          status: 'content_ready',
           content_priority: 6,
           expiration_date: expirationDateStr,
           language_code: 'en-US'
