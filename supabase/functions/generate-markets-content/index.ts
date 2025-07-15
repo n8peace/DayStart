@@ -45,7 +45,7 @@ serve(async (req) => {
     try {
       const rapidApiKey = Deno.env.get('RAPID_API_KEY')
       if (rapidApiKey) {
-        const yahooResponse = await fetch('https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-quotes?symbols=^GSPC,^DJI,^IXIC&region=US', {
+        const yahooResponse = await fetch('https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-quotes?symbols=^GSPC,^DJI,^TNX,BTC-USD&region=US', {
           headers: {
             'X-RapidAPI-Key': rapidApiKey,
             'X-RapidAPI-Host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
