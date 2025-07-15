@@ -131,10 +131,14 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        PGPASSWORD: ${{ secrets.SUPABASE_MAIN_DB_URL }}
       run: |
         cd supabase
         echo "Deploying database migrations..."
+        # Extract password from DB URL for PGPASSWORD
+        DB_URL="${{ secrets.SUPABASE_MAIN_DB_URL }}"
+        PGPASSWORD=$(echo "$DB_URL" | sed -n 's/.*:\([^@]*\)@.*/\1/p')
+        export PGPASSWORD
+        echo "Database password extracted and set"
         supabase db push
         
     - name: Deploy Edge Functions
@@ -267,10 +271,14 @@ jobs:
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        PGPASSWORD: ${{ secrets.SUPABASE_MAIN_DB_URL }}
       run: |
         cd supabase
         echo "Deploying database migrations..."
+        # Extract password from DB URL for PGPASSWORD
+        DB_URL="${{ secrets.SUPABASE_MAIN_DB_URL }}"
+        PGPASSWORD=$(echo "$DB_URL" | sed -n 's/.*:\([^@]*\)@.*/\1/p')
+        export PGPASSWORD
+        echo "Database password extracted and set"
         supabase db push
         
     - name: Deploy Edge Functions
