@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Validation
 
 on:
   push:
@@ -63,38 +63,9 @@ jobs:
   # This job has been moved to .github/workflows/deploy-develop.yml
   # to avoid duplicate deployments and provide better organization
         
-  # Deploy to Production (manual trigger only)
-  deploy-production:
-    name: Deploy to Production Environment
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [ios-ci, supabase-ci]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Supabase CLI
-      uses: supabase/setup-cli@v1
-      with:
-        version: latest
-        
-    - name: Deploy to Supabase Production
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
-        supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
-        echo "Deploying database migrations..."
-        supabase db push --db-url ${{ secrets.SUPABASE_MAIN_DB_URL }}
-        echo "Deploying edge functions..."
-        supabase functions deploy
-        
-    - name: Notify Deploy Success
-      run: |
-        echo "✅ Successfully deployed to production environment"
-        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+  # Production deployment moved to deploy.yml
+  # This job has been moved to .github/workflows/deploy.yml
+  # to avoid duplicate deployments and provide better organization
         
   # Security & Quality Checks
   security-checks:
