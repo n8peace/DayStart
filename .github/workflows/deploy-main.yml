@@ -99,8 +99,12 @@ jobs:
       run: |
         cd supabase
         echo "Deploying edge functions to production..."
+        echo "Current directory: $(pwd)"
+        echo "Functions directory contents:"
+        ls -la functions/ || echo "Functions directory not found"
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
+          echo "Found functions, deploying..."
           supabase functions deploy
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
