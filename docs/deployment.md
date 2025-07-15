@@ -102,34 +102,6 @@ your-project/
 └── README.md
 ```
 
-### **Example config.toml**
-```toml
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage", "graphql_public"]
-
-[db]
-port = 54322
-shadow_port = 54320
-major_version = 15
-
-[studio]
-enabled = true
-port = 54323
-
-[inbucket]
-enabled = true
-port = 54324
-
-[storage]
-enabled = true
-
-[auth]
-enabled = true
-port = 54325
-```
-
 ## 🚀 Workflow Files
 
 ### Production Deployment (`.github/workflows/deploy-main.yml`)
@@ -164,41 +136,6 @@ port = 54325
 ### 4. Notification
 - Success notifications with deployment details
 - Failure notifications with rollback guidance
-
-## 🔧 Setup Instructions
-
-### 1. Create Supabase Projects
-1. Create production project in Supabase dashboard
-2. Create development project in Supabase dashboard
-3. Note the project references for each
-
-### 2. Get Supabase Access Token
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
-2. Navigate to Account → Access Tokens
-3. Generate a new access token
-
-### 3. Get Service Role Keys
-1. In each Supabase project dashboard
-2. Go to Settings → API
-3. Copy the "service_role" key (not the anon key)
-
-### 4. Get Database URLs
-1. Go to your Supabase project dashboard
-2. Click on "Settings" → "Database"
-3. Scroll down to "Connection string"
-4. Select "URI" format
-5. Copy the connection string
-6. Replace `[YOUR-PASSWORD]` with your database password
-
-### 5. Configure GitHub Secrets
-1. Go to your GitHub repository
-2. Settings → Secrets and variables → Actions
-3. Add all required secrets with exact names
-
-### 6. Test Deployments
-1. Push to `develop` branch to test development deployment
-2. Push to `main` branch to test production deployment
-3. Check GitHub Actions logs for any issues
 
 ## 🗄️ Database Migrations
 
@@ -244,16 +181,12 @@ Error: Project not found
 3. Ensure project exists and is accessible
 
 ### Debug Commands
-
 ```bash
 # Check Supabase CLI status
 supabase status
 
 # Check migration status
 supabase migration list
-
-# Check connection status
-supabase status
 
 # Validate project setup
 supabase projects list
@@ -306,13 +239,13 @@ supabase projects list
 - Keep migrations small and focused
 - Never modify existing migrations
 
-### 4. Security
+### 3. Security
 - Never commit API keys to repository
 - Use environment variables for secrets
 - Enable branch protection rules
 - Review deployment logs regularly
 
-### 5. General
+### 4. General
 - **Always test in develop first**
 - **Use descriptive commit messages**
 - **Review PRs thoroughly before merging**
@@ -320,22 +253,6 @@ supabase projects list
 - **Keep migration files small and focused**
 - **Document breaking changes**
 - **Use feature flags for major changes**
-
-## 📚 Quick Commands Reference
-
-```bash
-# Link to project
-supabase link --project-ref YOUR_PROJECT_REF
-
-# Deploy database changes
-supabase db push
-
-# Check status
-supabase status
-
-# List migrations
-supabase migration list
-```
 
 ## 🔗 Useful Links
 
@@ -345,4 +262,4 @@ supabase migration list
 
 ---
 
-*This deployment system provides automated, reliable deployments with comprehensive validation and health checks for both development and production environments. The system has been tested and is fully operational.*
+*This deployment system provides automated, reliable deployments with comprehensive validation and health checks for both development and production environments. For initial setup, see [supabase-setup.md](supabase-setup.md).*

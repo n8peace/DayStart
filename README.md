@@ -145,11 +145,10 @@ APP_ENV=development
 
 ## 📚 Documentation
 
-- [Architecture Overview](docs/architecture.md)
-- [API Documentation](docs/api.md)
-- [iOS Development Guide](docs/ios-guide.md)
-- [Supabase Setup](docs/supabase-setup.md)
-- [Deployment Guide](docs/deployment.md)
+- [Supabase Setup](docs/supabase-setup.md) - Initial setup and configuration
+- [Deployment Guide](docs/deployment.md) - CI/CD and deployment workflows
+- [Development Guide](docs/development.md) - Development workflow and best practices
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 
 ## 🤝 Contributing
 
@@ -168,4 +167,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For support and questions:
 - Create an issue in this repository
 - Check the [documentation](docs/)
-- Review [troubleshooting guide](docs/troubleshooting.md) 
+- Review [troubleshooting guide](docs/troubleshooting.md)
+- Check [development guide](docs/development.md) for workflow questions 

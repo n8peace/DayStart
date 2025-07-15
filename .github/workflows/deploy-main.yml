@@ -99,42 +99,38 @@ jobs:
       run: |
         cd supabase
         echo "Deploying edge functions to production..."
-        if [ -s "functions/generate-message/index.ts" ] || [ -s "functions/test-voice/index.ts" ]; then
+        # Check if any functions exist to deploy
+        if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
           supabase functions deploy --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }}
         else
-          echo "⚠️ No functions to deploy - function files are empty"
+          echo "⚠️ No functions to deploy - functions directory is empty"
         fi
         
     - name: Run health checks
       run: |
         echo "🏥 Running health checks..."
-        if [ -s "supabase/functions/generate-message/index.ts" ]; then
-          echo "Testing generate-message function..."
-          response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/generate-message \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
-          http_code=$(echo "$response" | tail -n1)
-          if [ "$http_code" = "200" ]; then
-            echo "✅ generate-message function is healthy"
-          else
-            echo "❌ generate-message function health check failed (HTTP $http_code)"
-            exit 1
-          fi
+        # Check if any functions exist before testing them
+        if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
+          echo "Testing edge functions..."
+          # List available functions for testing
+          for func_dir in supabase/functions/*/; do
+            if [ -d "$func_dir" ]; then
+              func_name=$(basename "$func_dir")
+              echo "Testing $func_name function..."
+              response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
+                -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+              
+              http_code=$(echo "$response" | tail -n1)
+              if [ "$http_code" = "200" ]; then
+                echo "✅ $func_name function is healthy"
+              else
+                echo "❌ $func_name function health check failed (HTTP $http_code)"
+                exit 1
+              fi
+            fi
+          done
         else
-          echo "⚠️ generate-message function not tested - file is empty"
-        fi
-        if [ -s "supabase/functions/test-voice/index.ts" ]; then
-          echo "Testing test-voice function..."
-          response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/test-voice \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
-          http_code=$(echo "$response" | tail -n1)
-          if [ "$http_code" = "200" ]; then
-            echo "✅ test-voice function is healthy"
-          else
-            echo "❌ test-voice function health check failed (HTTP $http_code)"
-            exit 1
-          fi
-        else
-          echo "⚠️ test-voice function not tested - file is empty"
+          echo "⚠️ No functions to test - functions directory is empty"
         fi
         echo "Testing database connectivity..."
         response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count \
