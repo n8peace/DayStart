@@ -2,17 +2,19 @@
 
 ## 📊 Schema Overview
 
-### **Current Tables (4 total)**
+### **Current Tables (5 total)**
 1. `users` - User authentication and basic user data
 2. `content_blocks` - Unified content storage for all content types
 3. `user_preferences` - Minimal user settings (timezone, location)
-4. `logs` - System-wide logging and monitoring
+4. `user_weather_data` - Weather Kit data cache shared by location
+5. `logs` - System-wide logging and monitoring
 
 ### **Deployment Status**
 - ✅ `users` - Deployed to develop branch
-- ⏳ `content_blocks` - Ready for deployment
-- ⏳ `user_preferences` - Ready for deployment  
-- ⏳ `logs` - Ready for deployment
+- ✅ `content_blocks` - Deployed to develop branch
+- ✅ `user_preferences` - Deployed to develop branch
+- ✅ `logs` - Deployed to develop branch
+- ⏳ `user_weather_data` - Ready for deployment
 
 ## 📋 Table Definitions
 
@@ -184,6 +186,43 @@
 - Users can read their own logs (user_id = auth.uid())
 - Service role can read/write all logs for system monitoring
 - Users cannot write logs (insert/update/delete) - only system can
+
+### **5. user_weather_data Table**
+**Status**: ⏳ Ready for deployment
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key, auto-generated |
+| `location_key` | VARCHAR(100) | Location identifier (zipcode for US, lat_lng for international) |
+| `date` | DATE | Date this weather data is for |
+| `weather_data` | JSONB | Complete Weather Kit response data |
+| `last_updated` | TIMESTAMP WITH TIME ZONE | When this data was last fetched or accessed |
+| `expires_at` | TIMESTAMP WITH TIME ZONE | When this data expires and should be refreshed |
+| `fetch_count` | INTEGER | Number of times this data has been accessed |
+| `created_at` | TIMESTAMP WITH TIME ZONE | When the record was first created |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification to the record |
+
+**Location Key Strategy**:
+- **US locations**: Uses zipcode (e.g., "10001", "90210")
+- **International**: Uses lat_lng format (e.g., "40.7128_-74.0060")
+
+**Indexes**:
+- Primary key on `id`
+- Index on `(location_key, date)` for location lookups
+- Index on `expires_at` for cleanup operations
+- Index on `last_updated` for refresh operations
+- GIN index on `weather_data` for JSONB queries
+
+**Constraints**:
+- `location_key` cannot be null
+- `date` cannot be null
+- `expires_at` must be after `created_at`
+- Unique constraint on `(location_key, date)`
+- `fetch_count` must be >= 0
+
+**RLS Policies**:
+- Users can read weather data (shared resource)
+- Service role can manage weather data for background jobs
 
 ## 🔐 RLS (Row Level Security) Policies
 
