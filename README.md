@@ -140,6 +140,8 @@ APP_ENV=development
 
 ## 📚 Documentation
 
+- [Content Schema](docs/content-schema.md) - Live database schema and content system
+- [Database Documentation](docs/database.md) - Complete database table definitions
 - [iOS App Features](docs/ios-app.md) - Complete iOS app feature documentation
 - [Supabase Setup](docs/supabase-setup.md) - Initial setup and configuration
 - [Deployment Guide](docs/deployment.md) - CI/CD and deployment workflows
