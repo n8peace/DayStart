@@ -43,6 +43,9 @@ serve(async (req) => {
     const tomorrowUtc = new Date()
     tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
     const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
+    
+    // Get day of the week for tomorrow
+    const dayOfWeek = tomorrowUtc.toLocaleDateString('en-US', { weekday: 'long' })
 
     // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
@@ -106,7 +109,7 @@ serve(async (req) => {
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'wake_up',
       date: tomorrowDate,
-      content: `Date: ${utcDate}. Previous message: ${previousMessage}. Holiday: ${holidayData ? JSON.stringify(holidayData) : 'No holiday data available'}`,
+      content: `Date: ${tomorrowDate} (${dayOfWeek}). Previous message: ${previousMessage}. Holiday: ${holidayData ? JSON.stringify(holidayData) : 'No holiday data available'}`,
       parameters: {
         previous_message: previousMessage,
         holiday_data: holidayData,
