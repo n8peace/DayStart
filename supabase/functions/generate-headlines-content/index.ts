@@ -36,10 +36,9 @@ serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowDate = tomorrow.toISOString().split('T')[0]
+    // Get today's date for headlines content
+    const today = new Date()
+    const todayDate = today.toISOString().split('T')[0]
 
     // Get expiration date (72 hours from now)
     const expirationDate = new Date()
@@ -144,7 +143,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'headlines',
-      date: tomorrowDate,
+      date: todayDate,
       content: content,
       parameters: {
         news_api_data: newsApiData,
@@ -177,7 +176,7 @@ serve(async (req) => {
           event_type: 'content_generated',
           status: 'success',
           message: 'Headlines content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'headlines', date: tomorrowDate }
+          metadata: { content_block_id: data.id, content_type: 'headlines', date: todayDate }
         })
     } catch (logError) {
       console.error('Failed to log successful generation:', logError)

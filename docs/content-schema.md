@@ -26,7 +26,7 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 |--------|------|-------------|
 | `id` | UUID | Primary key, auto-generated |
 | `user_id` | UUID | Foreign key to users table (nullable for shared content) |
-| `date` | DATE | The date this content is for (morning of...) |
+| `date` | DATE | The date this content is for (varies by content type - see Content Date Strategy below) |
 | `content_type` | VARCHAR(50) | Type of content (wake_up, stretch, challenge, weather, etc.) |
 | `script` | TEXT | The GPT-4o generated text content |
 | `audio_url` | VARCHAR(500) | ElevenLabs generated audio file location |
@@ -43,15 +43,21 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 | `script_generated_at` | TIMESTAMP WITH TIME ZONE | When GPT-4o finished generating the script |
 | `audio_generated_at` | TIMESTAMP WITH TIME ZONE | When ElevenLabs finished creating the audio |
 
-#### **Content Types**
+#### **Content Date Strategy**
 
-**MVP Content Types:**
+Content generation follows different date strategies based on content type:
+
+**Tomorrow-Focused Content (Generated for next day):**
 - `wake_up` - General wake-up messages and greetings
-- `weather` - Weather information and forecasts
 - `encouragement` - Motivational and inspirational content
-- `headlines` - News headlines and summaries
+
+**Today-Focused Content (Generated for current day):**
+- `weather` - Weather information and forecasts
+- `headlines` - News headlines and summaries  
 - `sports` - Sports updates and highlights
 - `markets` - Financial market updates and analysis
+
+**User-Specific Content:**
 - `user_intro` - Personalized opening messages
 - `user_outro` - Personalized closing messages
 - `user_reminders` - Personal reminders and tasks
@@ -92,6 +98,23 @@ Stores all content (shared and user-specific) in a unified structure with flexib
   "category": "technology"
 }
 ```
+
+#### **Content Types**
+
+**MVP Content Types:**
+- `wake_up` - General wake-up messages and greetings
+- `weather` - Weather information and forecasts
+- `encouragement` - Motivational and inspirational content
+- `headlines` - News headlines and summaries
+- `sports` - Sports updates and highlights
+- `markets` - Financial market updates and analysis
+- `user_intro` - Personalized opening messages
+- `user_outro` - Personalized closing messages
+- `user_reminders` - Personal reminders and tasks
+
+**Future Content Types (Not in MVP):**
+- `stretch` - Morning stretch routines and instructions
+- `challenge` - Brain teasers, puzzles, and mental challenges
 
 #### **Status Values**
 - `pending` - Record created, waiting to start generation

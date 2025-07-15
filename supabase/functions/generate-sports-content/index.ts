@@ -31,18 +31,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowDate = tomorrow.toISOString().split('T')[0]
+    // Get today's date for sports content
+    const today = new Date()
+    const todayDate = today.toISOString().split('T')[0]
 
     // Get expiration date (72 hours from now)
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    // Get today's date for sports data
-    const today = new Date().toISOString().split('T')[0]
+    // Get today's date for sports data (using existing today variable)
 
     // Fetch sports data from SportsDB API for today's events
     let sportsDbData = null
@@ -121,7 +119,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'sports',
-      date: tomorrowDate,
+      date: todayDate,
       content: content,
       parameters: {
         sportsdb_data: sportsDbData,
@@ -152,8 +150,8 @@ serve(async (req) => {
       .insert({
         event_type: 'content_generated',
         status: 'success',
-        message: 'Sports content generated successfully',
-        metadata: { content_block_id: data.id, content_type: 'sports', date: tomorrowDate }
+                  message: 'Sports content generated successfully',
+          metadata: { content_block_id: data.id, content_type: 'sports', date: todayDate }
       })
 
     return new Response(
