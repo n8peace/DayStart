@@ -46,6 +46,7 @@
 | `user_id` | UUID | Foreign key to users table (nullable for shared content) |
 | `date` | DATE | The date this content is for (morning of...) |
 | `content_type` | VARCHAR(50) | Type of content (wake_up, stretch, challenge, etc.) |
+| `content` | TEXT | Raw content text before script generation |
 | `script` | TEXT | The GPT-4o generated text content |
 | `audio_url` | VARCHAR(500) | ElevenLabs generated audio file location |
 | `status` | VARCHAR(50) | Current state in the generation pipeline |
