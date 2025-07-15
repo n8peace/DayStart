@@ -82,7 +82,7 @@ serve(async (req) => {
     try {
       const abstractsApiKey = Deno.env.get('ABSTRACTS_API_KEY')
       if (abstractsApiKey) {
-        const holidayResponse = await fetch(`https://holidays.abstractapi.com/v1/?api_key=${abstractsApiKey}&country=US&year=${new Date().getFullYear()}&date=${utcDate}`)
+        const holidayResponse = await fetch(`https://holidays.abstractapi.com/v1/?api_key=${abstractsApiKey}&country=US&year=${new Date().getFullYear()}&date=${tomorrowDate}`)
         if (holidayResponse.ok) {
           holidayData = await holidayResponse.json()
         } else {
@@ -102,7 +102,7 @@ serve(async (req) => {
         event_type: 'api_call',
         status: holidayError ? 'error' : 'success',
         message: holidayError || 'Holiday data fetched successfully',
-        metadata: { api: 'abstracts_holiday', date: utcDate }
+        metadata: { api: 'abstracts_holiday', date: tomorrowDate }
       })
 
     // Create content block
