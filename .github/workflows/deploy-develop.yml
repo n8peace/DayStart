@@ -78,6 +78,10 @@ jobs:
         echo "Linking to development project: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
         supabase link --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}
         
+        # Verify the link was successful
+        echo "Verifying project link..."
+        supabase projects list
+        
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -91,12 +95,17 @@ jobs:
           echo "Found migrations to deploy:"
           ls -la migrations/
           
-          # Deploy using the API approach (more reliable for CI/CD)
-          if ! supabase db push --use-api; then
-            echo "⚠️ API deployment failed, trying alternative approach..."
-            echo "This deployment will need to be completed manually via Supabase Dashboard"
-            echo "Please run migrations manually in the Supabase Dashboard"
-            echo "Project: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
+          # Deploy using linked project approach
+          echo "Attempting to deploy migrations to linked project..."
+          if ! supabase db push --linked; then
+            echo "⚠️ Migration deployment failed"
+            echo "This may be due to network restrictions in CI/CD environment"
+            echo "Please run migrations manually in the Supabase Dashboard:"
+            echo "1. Go to https://supabase.com/dashboard/project/${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
+            echo "2. Navigate to SQL Editor"
+            echo "3. Run the migration SQL manually"
+            echo "Migration files to run:"
+            ls -la migrations/
             exit 0  # Don't fail the workflow, just warn
           fi
         else
