@@ -20,10 +20,10 @@ which supabase
 
 # 2. Link to the project (do this ONCE in your project root)
 # For develop environment:
-supabase link --project-ref epqiarnkhzabggxiltci
+supabase link --project-ref project_ref
 
 # For production environment:
-supabase link --project-ref yqbrfznixefqqhnvingu
+supabase link --project-ref project_ref
 
 # 3. Set up environment variables (if .env doesn't exist)
 cp .env.example .env  # or create manually
@@ -48,8 +48,8 @@ supabase status
 ## 🔧 Environment Configuration
 
 ### Project References
-- **Main Environment**: `yqbrfznixefqqhnvingu`
-- **Develop Environment**: `epqiarnkhzabggxiltci`
+- **Main Environment**: `project_ref`
+- **Develop Environment**: `project_ref`
 
 ### Environment Variables Setup
 
@@ -67,17 +67,21 @@ cp .env.example .env
 Create `.env` with your project details:
 
 ```bash
-# Supabase Configuration (Develop Environment)
-SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
-SUPABASE_ANON_KEY=your_develop_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_develop_service_role_key
-SUPABASE_DEVELOP_PROJECT=epqiarnkhzabggxiltci
+# Supabase Configuration (Development Environment)
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_development_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_development_service_role_key
+SUPABASE_DEVELOP_PROJECT=project_ref
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_DB_PASSWORD=your_database_password
 
 # Supabase Configuration (Production Environment)
-# SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
+# SUPABASE_URL=your_supabase_url
 # SUPABASE_ANON_KEY=your_production_anon_key
 # SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
-# SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
+# SUPABASE_MAIN_PROJECT=project_ref
+# SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+# SUPABASE_DB_PASSWORD=your_database_password
 
 # OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key
@@ -107,10 +111,10 @@ supabase login
 ### Step 3: Link to Project
 ```bash
 # For develop environment
-supabase link --project-ref epqiarnkhzabggxiltci
+supabase link --project-ref project_ref
 
 # For production environment
-supabase link --project-ref yqbrfznixefqqhnvingu
+supabase link --project-ref project_ref
 ```
 
 **What happens:**
@@ -124,7 +128,7 @@ supabase link --project-ref yqbrfznixefqqhnvingu
 supabase migration list
 
 # Test database access (replace with your actual keys)
-curl -s "https://epqiarnkhzabggxiltci.supabase.co/rest/v1/users?select=count" \
+curl -s "your_supabase_url/rest/v1/users?select=count" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
 ```
@@ -192,7 +196,7 @@ supabase migration list
 ### Key Tables
 ```bash
 # Check table counts (after users table is deployed)
-curl -s "https://epqiarnkhzabggxiltci.supabase.co/rest/v1/users?select=count" \
+curl -s "your_supabase_url/rest/v1/users?select=count" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
 ```
@@ -200,8 +204,8 @@ curl -s "https://epqiarnkhzabggxiltci.supabase.co/rest/v1/users?select=count" \
 ## 🚀 Development Workflow
 
 ### Branch Strategy
-- **main branch**: Production environment (`yqbrfznixefqqhnvingu`)
-- **develop branch**: Development environment (`epqiarnkhzabggxiltci`)
+- **main branch**: Production environment (`project_ref`)
+- **develop branch**: Development environment (`project_ref`)
 
 ### Local Development
 1. Work on `develop` branch
@@ -231,7 +235,7 @@ supabase db reset
 ### Testing
 ```bash
 # Test database connection
-curl -s "https://epqiarnkhzabggxiltci.supabase.co/rest/v1/users?select=count" \
+curl -s "your_supabase_url/rest/v1/users?select=count" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
 ```
@@ -268,7 +272,7 @@ Push to Branch → Supabase Detects Changes → Automatic Deployment
 #### **1. "Invalid API key" errors**
 ```bash
 # Ensure both headers are set
-curl -s "https://epqiarnkhzabggxiltci.supabase.co/rest/v1/users?select=count" \
+curl -s "your_supabase_url/rest/v1/users?select=count" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
 ```
@@ -288,7 +292,7 @@ supabase migration repair --status applied <migration_id>
 supabase status
 
 # Re-link to project
-supabase link --project-ref epqiarnkhzabggxiltci
+supabase link --project-ref project_ref
 ```
 
 #### **4. Integration Not Working**

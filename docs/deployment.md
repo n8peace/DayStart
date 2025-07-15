@@ -4,8 +4,8 @@
 
 DayStart uses a dual-environment deployment system with automated CI/CD pipelines:
 
-- **`main` branch** → Production environment (`yqbrfznixefqqhnvingu`)
-- **`develop` branch** → Development environment (`epqiarnkhzabggxiltci`)
+- **`main` branch** → Production environment (`project_ref`)
+- **`develop` branch** → Development environment (`project_ref`)
 
 ✅ **Status: Deployment system is fully operational and tested**
 
@@ -28,20 +28,20 @@ Set these secrets in your GitHub repository settings:
 
 #### Production Environment (`main` branch)
 ```bash
-SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
-SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
-SUPABASE_ACCESS_TOKEN=your-supabase-access-token
-SUPABASE_MAIN_DB_URL=postgresql://postgres.yqbrfznixefqqhnvingu:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
+SUPABASE_MAIN_PROJECT=project_ref
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_DB_PASSWORD=your_database_password
 ```
 
 #### Development Environment (`develop` branch)
 ```bash
-SUPABASE_URL_DEV=https://epqiarnkhzabggxiltci.supabase.co
-SUPABASE_SERVICE_ROLE_KEY_DEV=your-development-service-role-key
-SUPABASE_DEV_PROJECT_REF=epqiarnkhzabggxiltci
-SUPABASE_ACCESS_TOKEN=your-supabase-access-token
-SUPABASE_DEVELOP_DB_URL=postgresql://postgres.epqiarnkhzabggxiltci:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_development_service_role_key
+SUPABASE_DEVELOP_PROJECT=project_ref
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_DB_PASSWORD=your_database_password
 ```
 
 ### 3. **Set Up Branch Protection (Recommended)**

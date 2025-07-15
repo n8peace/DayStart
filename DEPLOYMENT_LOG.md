@@ -3,7 +3,7 @@
 ## 🎯 Deployment Status: ✅ SUCCESSFUL
 
 **Date**: January 2025  
-**Environment**: Development (`epqiarnkhzabggxiltci`)  
+**Environment**: Development (`project_ref`)  
 **Status**: Fully operational deployment pipeline
 
 ## 📋 Deployment History
@@ -63,10 +63,10 @@
 
 ### Key Environment Variables
 ```bash
-SUPABASE_ACCESS_TOKEN=your-supabase-access-token
-SUPABASE_DEV_PROJECT_REF=epqiarnkhzabggxiltci
-SUPABASE_SERVICE_ROLE_KEY_DEV=your-development-service-role-key
-SUPABASE_DEVELOP_DB_URL=postgresql://postgres.epqiarnkhzabggxiltci:[PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token
+SUPABASE_DEVELOP_PROJECT=project_ref
+SUPABASE_SERVICE_ROLE_KEY=your_development_service_role_key
+SUPABASE_DB_PASSWORD=your_database_password
 ```
 
 ## ✅ Verification Results
