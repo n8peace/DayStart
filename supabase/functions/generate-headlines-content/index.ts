@@ -26,10 +26,15 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    // Validate required environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Missing required Supabase environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
     // Get tomorrow's date
     const tomorrow = new Date()
@@ -47,17 +52,23 @@ serve(async (req) => {
     try {
       const newsApiKey = Deno.env.get('NEWS_API_KEY')
       if (newsApiKey) {
-        const newsResponse = await fetch(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${newsApiKey}&pageSize=5`)
+        const newsResponse = await fetch(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${newsApiKey}&pageSize=5`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
         if (newsResponse.ok) {
           newsApiData = await newsResponse.json()
         } else {
-          newsApiError = `News API failed: ${newsResponse.status}`
+          newsApiError = `News API failed: ${newsResponse.status} ${newsResponse.statusText}`
         }
       } else {
         newsApiError = 'News API key not configured'
       }
     } catch (error) {
-      newsApiError = `News API error: ${error.message}`
+      if (error.name === 'TimeoutError') {
+        newsApiError = 'News API request timed out'
+      } else {
+        newsApiError = `News API error: ${error.message}`
+      }
     }
 
     // Fetch news from GNews API
@@ -66,17 +77,23 @@ serve(async (req) => {
     try {
       const gnewsApiKey = Deno.env.get('GNEWS_API_KEY')
       if (gnewsApiKey) {
-        const gnewsResponse = await fetch(`https://gnews.io/api/v4/top-headlines?category=general&country=us&token=${gnewsApiKey}&max=5`)
+        const gnewsResponse = await fetch(`https://gnews.io/api/v4/top-headlines?category=general&country=us&token=${gnewsApiKey}&max=5`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
         if (gnewsResponse.ok) {
           gnewsData = await gnewsResponse.json()
         } else {
-          gnewsError = `GNews API failed: ${gnewsResponse.status}`
+          gnewsError = `GNews API failed: ${gnewsResponse.status} ${gnewsResponse.statusText}`
         }
       } else {
         gnewsError = 'GNews API key not configured'
       }
     } catch (error) {
-      gnewsError = `GNews API error: ${error.message}`
+      if (error.name === 'TimeoutError') {
+        gnewsError = 'GNews API request timed out'
+      } else {
+        gnewsError = `GNews API error: ${error.message}`
+      }
     }
 
     // Log API calls (with error handling)
@@ -185,19 +202,25 @@ serve(async (req) => {
 
     // Log error
     try {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      )
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
       
-      await supabaseClient
-        .from('logs')
-        .insert({
-          event_type: 'content_generation_failed',
-          status: 'error',
-          message: `Headlines content generation failed: ${error.message}`,
-          metadata: { content_type: 'headlines', error: error.toString() }
-        })
+      if (supabaseUrl && supabaseServiceRoleKey) {
+        const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+        
+        await supabaseClient
+          .from('logs')
+          .insert({
+            event_type: 'content_generation_failed',
+            status: 'error',
+            message: `Headlines content generation failed: ${error.message}`,
+            metadata: { 
+              content_type: 'headlines', 
+              error: error.toString(),
+              stack: error.stack
+            }
+          })
+      }
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
@@ -205,7 +228,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message,
+        details: error.stack || 'No stack trace available'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
