@@ -81,18 +81,18 @@ Create a `.env` file in the root directory:
 
 ```env
 # Supabase (Development Environment)
-SUPABASE_URL=https://epqiarnkhzabggxiltci.supabase.co
+SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_development_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_development_service_role_key
-SUPABASE_DEVELOP_PROJECT=epqiarnkhzabggxiltci
+SUPABASE_DEVELOP_PROJECT=project_ref
 SUPABASE_ACCESS_TOKEN=your_supabase_access_token
 SUPABASE_DB_PASSWORD=your_database_password
 
 # Supabase (Production Environment)
-# SUPABASE_URL=https://yqbrfznixefqqhnvingu.supabase.co
+# SUPABASE_URL=your_supabase_url
 # SUPABASE_ANON_KEY=your_production_anon_key
 # SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
-# SUPABASE_MAIN_PROJECT=yqbrfznixefqqhnvingu
+# SUPABASE_MAIN_PROJECT=project_ref
 # SUPABASE_ACCESS_TOKEN=your_supabase_access_token
 # SUPABASE_DB_PASSWORD=your_database_password
 
