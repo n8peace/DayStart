@@ -62,9 +62,9 @@
 | `audio_generated_at` | TIMESTAMP WITH TIME ZONE | When ElevenLabs finished creating the audio |
 
 **Content Types**:
+
+**MVP Content Types:**
 - `wake_up` - General wake-up messages and greetings
-- `stretch` - Morning stretch routines and instructions
-- `challenge` - Brain teasers, puzzles, and mental challenges
 - `weather` - Weather information and forecasts
 - `encouragement` - Motivational and inspirational content
 - `headlines` - News headlines and summaries
@@ -73,6 +73,10 @@
 - `user_intro` - Personalized opening messages
 - `user_outro` - Personalized closing messages
 - `user_reminders` - Personal reminders and tasks
+
+**Future Content Types (Not in MVP):**
+- `stretch` - Morning stretch routines and instructions
+- `challenge` - Brain teasers, puzzles, and mental challenges
 
 **Status Values**:
 - `pending` - Record created, waiting to start generation
@@ -123,6 +127,7 @@
 | `user_id` | UUID | Primary key, references users table |
 | `timezone` | VARCHAR(50) | User's timezone for scheduling and timing |
 | `location_zip` | VARCHAR(10) | User's zipcode for location-based content matching |
+| `voice` | VARCHAR(100) | ElevenLabs voice identifier for user preference |
 | `created_at` | TIMESTAMP WITH TIME ZONE | When the record was created |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification to the record |
 

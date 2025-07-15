@@ -127,8 +127,6 @@ APP_ENV=development
 - **Voice Customization**: Multiple voice options via ElevenLabs
 - **Weather Integration**: Local weather in morning messages
 - **News Briefing**: Curated news based on user interests
-- **Morning Stretch**: Guided stretching routines to start the day
-- **Morning Challenge**: Math problems or puzzles to ensure you're fully awake
 - **Sports Highlights**: Latest sports updates and scores
 - **Market Highlights**: Stock market and financial news
 - **Philosophical/Religious Encouragement**: Inspirational quotes and spiritual guidance

@@ -44,9 +44,9 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 | `audio_generated_at` | TIMESTAMP WITH TIME ZONE | When ElevenLabs finished creating the audio |
 
 #### **Content Types**
+
+**MVP Content Types:**
 - `wake_up` - General wake-up messages and greetings
-- `stretch` - Morning stretch routines and instructions
-- `challenge` - Brain teasers, puzzles, and mental challenges
 - `weather` - Weather information and forecasts
 - `encouragement` - Motivational and inspirational content
 - `headlines` - News headlines and summaries
@@ -55,6 +55,10 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 - `user_intro` - Personalized opening messages
 - `user_outro` - Personalized closing messages
 - `user_reminders` - Personal reminders and tasks
+
+**Future Content Types (Not in MVP):**
+- `stretch` - Morning stretch routines and instructions
+- `challenge` - Brain teasers, puzzles, and mental challenges
 
 #### **Parameters Examples**
 ```json
@@ -242,6 +246,7 @@ Stores minimal user settings that are critical for backend operations. Content t
 | `user_id` | UUID | Primary key, references users table |
 | `timezone` | VARCHAR(50) | User's timezone for scheduling and timing |
 | `location_zip` | VARCHAR(10) | User's zipcode for location-based content matching |
+| `voice` | VARCHAR(100) | ElevenLabs voice identifier for user preference |
 | `created_at` | TIMESTAMP WITH TIME ZONE | When the record was created |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification to the record |
 
@@ -249,11 +254,12 @@ Stores minimal user settings that are critical for backend operations. Content t
 The following preferences are managed by the app and passed as parameters during content requests:
 
 - **Content type toggles** - Which content types to include in morning message
-- **Voice preferences** - Preferred ElevenLabs voice
 - **Sports teams** - Favorite teams and leagues
 - **News categories** - Preferred news topics
 - **Philosophical approach** - Stoic, Buddhist, Christian, etc.
 - **Challenge preferences** - Math, logic, trivia, etc.
+
+**Note**: Voice preferences are now stored in the `voice` column of the `user_preferences` table.
 
 #### **Example App Request**
 ```json
