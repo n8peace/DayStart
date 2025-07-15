@@ -26,7 +26,7 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 |--------|------|-------------|
 | `id` | UUID | Primary key, auto-generated |
 | `user_id` | UUID | Foreign key to users table (nullable for shared content) |
-| `date` | DATE | The date this content is for (varies by content type - see Content Date Strategy below) |
+| `date` | DATE | UTC date this content is for (all content uses UTC dates for consistency) |
 | `content_type` | VARCHAR(50) | Type of content (wake_up, stretch, challenge, weather, etc.) |
 | `script` | TEXT | The GPT-4o generated text content |
 | `audio_url` | VARCHAR(500) | ElevenLabs generated audio file location |
@@ -45,22 +45,34 @@ Stores all content (shared and user-specific) in a unified structure with flexib
 
 #### **Content Date Strategy**
 
-Content generation follows different date strategies based on content type:
+All content generation functions use **UTC dates** for consistency and to avoid timezone confusion. The app retrieves the most recent content by querying for the latest `created_at` timestamp within each content type.
 
-**Tomorrow-Focused Content (Generated for next day):**
+**Content Types:**
 - `wake_up` - General wake-up messages and greetings
-- `encouragement` - Motivational and inspirational content
-
-**Today-Focused Content (Generated for current day):**
 - `weather` - Weather information and forecasts
+- `encouragement` - Motivational and inspirational content
 - `headlines` - News headlines and summaries  
 - `sports` - Sports updates and highlights
 - `markets` - Financial market updates and analysis
-
-**User-Specific Content:**
 - `user_intro` - Personalized opening messages
 - `user_outro` - Personalized closing messages
 - `user_reminders` - Personal reminders and tasks
+
+**Date Generation Logic:**
+```javascript
+// All functions use this UTC date generation
+const utcDate = new Date().toISOString().split('T')[0]
+```
+
+**App Retrieval Strategy:**
+The iOS app queries for the most recent content using:
+```sql
+SELECT * FROM content_blocks 
+WHERE content_type = 'headlines' 
+AND status = 'content_ready' 
+ORDER BY created_at DESC 
+LIMIT 1
+```
 
 **Future Content Types (Not in MVP):**
 - `stretch` - Morning stretch routines and instructions

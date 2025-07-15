@@ -31,23 +31,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get today's date for sports content
-    const today = new Date()
-    const todayDate = today.toISOString().split('T')[0]
+    // Get UTC date for sports content
+    const utcDate = new Date().toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now)
+    // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    // Get today's date for sports data (using existing today variable)
+    // Get today's date for sports data lookup
 
     // Fetch sports data from SportsDB API for today's events
     let sportsDbData = null
     let sportsDbError = null
     try {
       const sportsDbApiKey = Deno.env.get('SPORTSDB_API_KEY') || '123' // Use free key if not configured
-      const sportsDbResponse = await fetch(`https://www.thesportsdb.com/api/v1/json/${sportsDbApiKey}/eventsday.php?d=${today}`)
+              const sportsDbResponse = await fetch(`https://www.thesportsdb.com/api/v1/json/${sportsDbApiKey}/eventsday.php?d=${utcDate}`)
       if (sportsDbResponse.ok) {
         sportsDbData = await sportsDbResponse.json()
       } else {
@@ -119,7 +118,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'sports',
-      date: todayDate,
+      date: utcDate,
       content: content,
       parameters: {
         sportsdb_data: sportsDbData,
@@ -151,7 +150,7 @@ serve(async (req) => {
         event_type: 'content_generated',
         status: 'success',
                   message: 'Sports content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'sports', date: todayDate }
+          metadata: { content_block_id: data.id, content_type: 'sports', date: utcDate }
       })
 
     return new Response(

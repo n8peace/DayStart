@@ -38,18 +38,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowDate = tomorrow.toISOString().split('T')[0]
+    // Get UTC dates for content generation
+    const utcDate = new Date().toISOString().split('T')[0]
+    const tomorrowUtc = new Date()
+    tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
+    const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now)
+    // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
-
-    // Get today's date for holiday API
-    const today = new Date().toISOString().split('T')[0]
 
     // Get yesterday's wake-up message to avoid repetition
     const yesterday = new Date()
@@ -81,7 +79,7 @@ serve(async (req) => {
     try {
       const abstractsApiKey = Deno.env.get('ABSTRACTS_API_KEY')
       if (abstractsApiKey) {
-        const holidayResponse = await fetch(`https://holidays.abstractapi.com/v1/?api_key=${abstractsApiKey}&country=US&year=${new Date().getFullYear()}&date=${today}`)
+        const holidayResponse = await fetch(`https://holidays.abstractapi.com/v1/?api_key=${abstractsApiKey}&country=US&year=${new Date().getFullYear()}&date=${utcDate}`)
         if (holidayResponse.ok) {
           holidayData = await holidayResponse.json()
         } else {
@@ -101,14 +99,14 @@ serve(async (req) => {
         event_type: 'api_call',
         status: holidayError ? 'error' : 'success',
         message: holidayError || 'Holiday data fetched successfully',
-        metadata: { api: 'abstracts_holiday', date: today }
+        metadata: { api: 'abstracts_holiday', date: utcDate }
       })
 
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'wake_up',
       date: tomorrowDate,
-      content: `Date: ${today}. Previous message: ${previousMessage}. Holiday: ${holidayData ? JSON.stringify(holidayData) : 'No holiday data available'}`,
+      content: `Date: ${utcDate}. Previous message: ${previousMessage}. Holiday: ${holidayData ? JSON.stringify(holidayData) : 'No holiday data available'}`,
       parameters: {
         previous_message: previousMessage,
         holiday_data: holidayData,

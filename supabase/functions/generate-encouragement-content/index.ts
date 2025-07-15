@@ -33,12 +33,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowDate = tomorrow.toISOString().split('T')[0]
+    // Get UTC dates for content generation
+    const utcDate = new Date().toISOString().split('T')[0]
+    const tomorrowUtc = new Date()
+    tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
+    const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now)
+    // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]

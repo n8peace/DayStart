@@ -31,11 +31,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get today's date for markets content
-    const today = new Date()
-    const todayDate = today.toISOString().split('T')[0]
+    // Get UTC date for markets content
+    const utcDate = new Date().toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now)
+    // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
@@ -130,7 +129,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'markets',
-      date: todayDate,
+      date: utcDate,
       content: content,
       parameters: {
         yahoo_data: yahooData,
@@ -162,7 +161,7 @@ serve(async (req) => {
         event_type: 'content_generated',
         status: 'success',
                   message: 'Markets content generated successfully',
-          metadata: { content_block_id: data.id, content_type: 'markets', date: todayDate }
+          metadata: { content_block_id: data.id, content_type: 'markets', date: utcDate }
       })
 
     return new Response(

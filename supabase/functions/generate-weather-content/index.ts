@@ -40,11 +40,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get today's date for weather content
-    const today = new Date()
-    const todayDate = today.toISOString().split('T')[0]
+    // Get UTC date for weather content
+    const utcDate = new Date().toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now)
+    // Get expiration date (72 hours from now) in UTC
     const expirationDate = new Date()
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
@@ -71,7 +70,7 @@ serve(async (req) => {
           event_type: 'content_generation_failed',
           status: 'error',
           message: 'No weather data available for content generation',
-          metadata: { content_type: 'weather', date: today }
+          metadata: { content_type: 'weather', date: utcDate }
         })
 
       return new Response(
@@ -111,7 +110,7 @@ serve(async (req) => {
         // Create content block
         const contentBlock: Partial<ContentBlock> = {
           content_type: 'weather',
-          date: todayDate,
+          date: utcDate,
           content: content,
           parameters: {
             user_weather_data_id: weather.id,
@@ -153,7 +152,7 @@ serve(async (req) => {
             metadata: { 
               content_block_id: data.id, 
               content_type: 'weather', 
-              date: todayDate,
+              date: utcDate,
               location_key: weather.location_key 
             }
           })
