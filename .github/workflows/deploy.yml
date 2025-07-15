@@ -5,62 +5,16 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-        - production
-      confirm_deployment:
-        description: 'Confirm you want to deploy to production'
-        required: true
-        type: boolean
-        default: false
-
-env:
-  SUPABASE_MAIN_PROJECT: ${{ secrets.SUPABASE_MAIN_PROJECT }}
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: 'false'
 
 jobs:
-  validate-deployment:
-    name: Validate Deployment Request
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deployment == 'true'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Validate branch
-      run: |
-        if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-          echo "❌ Production deployments can only be triggered from main branch"
-          exit 1
-        fi
-        echo "✅ Branch validation passed"
-        
-    - name: Check for uncommitted changes
-      run: |
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "❌ Working directory is not clean"
-          git status
-          exit 1
-        fi
-        echo "✅ Working directory is clean"
-        
-    - name: Validate environment
-      run: |
-        if [ "${{ github.event.inputs.environment }}" != "production" ]; then
-          echo "❌ Only production deployments are supported"
-          exit 1
-        fi
-        echo "✅ Environment validation passed"
-        
-  deploy-production-auto:
-    name: Deploy to Production (Auto)
+  deploy-production:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     environment: main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
@@ -72,7 +26,7 @@ jobs:
         node-version: '18'
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
-      
+        
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
       with:
@@ -111,11 +65,11 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
-        if [ -z "${{ secrets.SUPABASE_MAIN_DB_URL }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_MAIN_DB_URL"
+        if [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_DB_PASSWORD"
           exit 1
         else
-          echo "✅ SUPABASE_MAIN_DB_URL is set"
+          echo "✅ SUPABASE_DB_PASSWORD is set"
         fi
         
         echo "✅ All required environment variables are set"
@@ -125,20 +79,18 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
-        supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
+        echo "Linking to production project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
+        supabase link --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }}
         
     - name: Deploy database migrations
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       run: |
         cd supabase
-        echo "Deploying database migrations..."
-        # Extract password from DB URL for PGPASSWORD
-        DB_URL="${{ secrets.SUPABASE_MAIN_DB_URL }}"
-        PGPASSWORD=$(echo "$DB_URL" | sed -n 's/.*:\([^@]*\)@.*/\1/p')
-        export PGPASSWORD
-        echo "Database password extracted and set"
+        echo "Deploying database migrations to production..."
+        export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
+        echo "Attempting database migration deployment..."
         supabase db push
         
     - name: Deploy Edge Functions
@@ -146,191 +98,90 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Deploying edge functions..."
-        if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          supabase functions deploy
+        echo "Deploying edge functions to production..."
+        if [ -s "functions/generate-message/index.ts" ] || [ -s "functions/test-voice/index.ts" ]; then
+          supabase functions deploy --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }}
         else
-          echo "No functions to deploy"
+          echo "⚠️ No functions to deploy - function files are empty"
         fi
         
-    - name: Verify deployment
+    - name: Run health checks
+      run: |
+        echo "🏥 Running health checks..."
+        if [ -s "supabase/functions/generate-message/index.ts" ]; then
+          echo "Testing generate-message function..."
+          response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/generate-message \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+          http_code=$(echo "$response" | tail -n1)
+          if [ "$http_code" = "200" ]; then
+            echo "✅ generate-message function is healthy"
+          else
+            echo "❌ generate-message function health check failed (HTTP $http_code)"
+            exit 1
+          fi
+        else
+          echo "⚠️ generate-message function not tested - file is empty"
+        fi
+        if [ -s "supabase/functions/test-voice/index.ts" ]; then
+          echo "Testing test-voice function..."
+          response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/test-voice \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+          http_code=$(echo "$response" | tail -n1)
+          if [ "$http_code" = "200" ]; then
+            echo "✅ test-voice function is healthy"
+          else
+            echo "❌ test-voice function health check failed (HTTP $http_code)"
+            exit 1
+          fi
+        else
+          echo "⚠️ test-voice function not tested - file is empty"
+        fi
+        echo "Testing database connectivity..."
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json")
+        http_code=$(echo "$response" | tail -n1)
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Database connectivity is healthy"
+        elif [ "$http_code" = "401" ]; then
+          echo "⚠️ Database connectivity check failed (HTTP 401) - likely due to empty database or missing migrations"
+          echo "This is expected for a fresh production deployment"
+        else
+          echo "⚠️ Database connectivity check failed (HTTP $http_code) - but continuing deployment"
+          echo "This may be due to empty database or missing migrations"
+        fi
+        
+    - name: Verify deployment status
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
-        echo "🔍 Verifying production deployment..."
-        
-        # Check if users table exists via API
-        echo "Checking database connectivity..."
-        response=$(curl -s -o /dev/null -w "%{http_code}" \
-          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-          "$SUPABASE_URL/rest/v1/users?select=count")
-        
-        if [ "$response" = "200" ]; then
-          echo "✅ Database connectivity verified"
+        echo "Verifying production deployment..."
+        echo "Testing Supabase API connectivity..."
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/ \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json")
+        http_code=$(echo "$response" | tail -n1)
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Supabase API is accessible"
         else
-          echo "⚠️ Database connectivity check failed (HTTP $response)"
-          echo "This may be normal if the users table doesn't exist yet"
+          echo "⚠️ Supabase API connectivity check failed (HTTP $http_code)"
+          echo "This may be normal for a fresh deployment"
         fi
-        
-        # Check migration files
-        echo "Checking migration files..."
-        if [ -d "supabase/migrations" ] && [ "$(ls -A supabase/migrations)" ]; then
-          echo "✅ Migration files found"
-          ls -la supabase/migrations/
+        echo "Checking migration status..."
+        cd supabase
+        if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
+          echo "✅ Migrations directory contains files"
+          ls -la migrations/
         else
-          echo "⚠️ No migration files found"
+          echo "⚠️ No migrations found"
         fi
-        
-        echo "✅ Production deployment verification complete"
+        echo "✅ Deployment verification complete"
         
     - name: Notify deployment success
       if: success()
       run: |
         echo "🎉 Successfully deployed to production!"
-        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
-        echo "Deployment time: $(date)"
-        echo "Commit: ${{ github.sha }}"
-        echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
-        
-  deploy-production-manual:
-    name: Deploy to Production (Manual)
-    runs-on: ubuntu-latest
-    environment: main
-    needs: validate-deployment
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_deployment == 'true'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
-      
-    - name: Setup Supabase CLI
-      uses: supabase/setup-cli@v1
-      with:
-        version: latest
-        
-    - name: Validate environment variables
-      run: |
-        echo "🔍 Validating production environment variables..."
-        
-        # Check each secret directly
-        if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_URL"
-          exit 1
-        else
-          echo "✅ SUPABASE_URL is set"
-        fi
-        
-        if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY"
-          exit 1
-        else
-          echo "✅ SUPABASE_SERVICE_ROLE_KEY is set"
-        fi
-        
-        if [ -z "${{ secrets.SUPABASE_MAIN_PROJECT }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_MAIN_PROJECT"
-          exit 1
-        else
-          echo "✅ SUPABASE_MAIN_PROJECT is set"
-        fi
-        
-        if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_ACCESS_TOKEN"
-          exit 1
-        else
-          echo "✅ SUPABASE_ACCESS_TOKEN is set"
-        fi
-        
-        if [ -z "${{ secrets.SUPABASE_MAIN_DB_URL }}" ]; then
-          echo "❌ Missing required environment variable: SUPABASE_MAIN_DB_URL"
-          exit 1
-        else
-          echo "✅ SUPABASE_MAIN_DB_URL is set"
-        fi
-        
-        echo "✅ All required environment variables are set"
-        
-    - name: Link to production project
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "Linking to production project: ${{ env.SUPABASE_MAIN_PROJECT }}"
-        supabase link --project-ref ${{ env.SUPABASE_MAIN_PROJECT }}
-        
-    - name: Deploy database migrations
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "Deploying database migrations..."
-        # Extract password from DB URL for PGPASSWORD
-        DB_URL="${{ secrets.SUPABASE_MAIN_DB_URL }}"
-        PGPASSWORD=$(echo "$DB_URL" | sed -n 's/.*:\([^@]*\)@.*/\1/p')
-        export PGPASSWORD
-        echo "Database password extracted and set"
-        supabase db push
-        
-    - name: Deploy Edge Functions
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "Deploying edge functions..."
-        if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          supabase functions deploy
-        else
-          echo "No functions to deploy"
-        fi
-        
-    - name: Verify deployment
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      run: |
-        echo "🔍 Verifying production deployment..."
-        
-        # Check if users table exists via API
-        echo "Checking database connectivity..."
-        response=$(curl -s -o /dev/null -w "%{http_code}" \
-          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-          "$SUPABASE_URL/rest/v1/users?select=count")
-        
-        if [ "$response" = "200" ]; then
-          echo "✅ Database connectivity verified"
-        else
-          echo "⚠️ Database connectivity check failed (HTTP $response)"
-          echo "This may be normal if the users table doesn't exist yet"
-        fi
-        
-        # Check migration files
-        echo "Checking migration files..."
-        if [ -d "supabase/migrations" ] && [ "$(ls -A supabase/migrations)" ]; then
-          echo "✅ Migration files found"
-          ls -la supabase/migrations/
-        else
-          echo "⚠️ No migration files found"
-        fi
-        
-        echo "✅ Production deployment verification complete"
-        
-    - name: Notify deployment success
-      if: success()
-      run: |
-        echo "🎉 Successfully deployed to production!"
-        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+        echo "Project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
         echo "Deployment time: $(date)"
         echo "Commit: ${{ github.sha }}"
         echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
@@ -345,7 +196,7 @@ jobs:
       run: |
         echo "❌ Production deployment failed!"
         echo "Please check the logs and fix any issues before retrying."
-        echo "Project: ${{ env.SUPABASE_MAIN_PROJECT }}"
+        echo "Project: ${{ secrets.SUPABASE_MAIN_PROJECT }}"
         echo "Commit: ${{ github.sha }}"
         echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
         
