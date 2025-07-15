@@ -45,7 +45,7 @@ serve(async (req) => {
     try {
       const rapidApiKey = Deno.env.get('RAPID_API_KEY')
       if (rapidApiKey) {
-        const yahooResponse = await fetch('https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-quotes?symbols=^GSPC,^DJI,^TNX,BTC-USD&region=US', {
+        const yahooResponse = await fetch('https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-timeseries?symbol=^GSPC&region=US&interval=1d&range=1d', {
           headers: {
             'X-RapidAPI-Key': rapidApiKey,
             'X-RapidAPI-Host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
@@ -104,15 +104,16 @@ serve(async (req) => {
     let content = 'Market Update: '
     const marketInfo = []
 
-    if (yahooData?.quoteResponse?.result) {
-      yahooData.quoteResponse.result.forEach((quote: any) => {
-        const symbol = quote.symbol
-        const price = quote.regularMarketPrice
-        const change = quote.regularMarketChangePercent
-        if (symbol && price && change) {
-          marketInfo.push(`${symbol}: $${price} (${change > 0 ? '+' : ''}${change.toFixed(2)}%)`)
-        }
-      })
+    if (yahooData?.chart?.result?.[0]) {
+      const result = yahooData.chart.result[0]
+      const symbol = result.meta?.symbol
+      const currentPrice = result.meta?.regularMarketPrice
+      const previousClose = result.meta?.previousClose
+      
+      if (symbol && currentPrice && previousClose) {
+        const change = ((currentPrice - previousClose) / previousClose) * 100
+        marketInfo.push(`${symbol}: $${currentPrice.toFixed(2)} (${change > 0 ? '+' : ''}${change.toFixed(2)}%)`)
+      }
     }
 
     if (businessNewsData?.articles) {
