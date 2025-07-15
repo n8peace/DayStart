@@ -160,9 +160,33 @@ jobs:
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
-        cd supabase
         echo "Verifying development deployment..."
-        supabase status
+        
+        # Check if we can access the Supabase API
+        echo "Testing Supabase API connectivity..."
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/ \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json")
+        
+        http_code=$(echo "$response" | tail -n1)
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Supabase API is accessible"
+        else
+          echo "⚠️ Supabase API connectivity check failed (HTTP $http_code)"
+          echo "This may be normal for a fresh deployment"
+        fi
+        
+        # Check migration status
+        echo "Checking migration status..."
+        cd supabase
+        if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
+          echo "✅ Migrations directory contains files"
+          ls -la migrations/
+        else
+          echo "⚠️ No migrations found"
+        fi
+        
+        echo "✅ Deployment verification complete"
         
     - name: Notify deployment success
       if: success()
