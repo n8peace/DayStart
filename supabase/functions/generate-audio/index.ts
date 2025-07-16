@@ -49,7 +49,7 @@ interface ElevenLabsResponse {
   audio_length: number // duration in seconds
 }
 
-const BATCH_SIZE = 100
+const BATCH_SIZE = 5 // Match ElevenLabs concurrency limit
 const MAX_RETRIES = 3
 
 // Helper function to safely log errors
@@ -354,10 +354,33 @@ async function processBatch(supabaseClient: any): Promise<{
 
     if (!contentBlocks || contentBlocks.length === 0) {
       console.log('No content blocks found with script_generated status')
+      
+      // Log that no content blocks were found
+      await safeLogError(supabaseClient, {
+        event_type: 'audio_generation_no_content',
+        status: 'info',
+        message: 'No content blocks found with script_generated status',
+        metadata: {
+          batch_size: BATCH_SIZE,
+          status_filter: 'script_generated'
+        }
+      })
+      
       return { success: true, processedCount: 0, totalErrors: 0, errors: [] }
     }
 
     console.log(`Found ${contentBlocks.length} content blocks ready for audio generation`)
+
+    // Log batch start
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_batch_started',
+      status: 'info',
+      message: `Starting audio generation batch for ${contentBlocks.length} content blocks`,
+      metadata: {
+        content_block_count: contentBlocks.length,
+        batch_size: BATCH_SIZE
+      }
+    })
 
     // Process each content block
     for (const contentBlock of contentBlocks) {
@@ -483,6 +506,29 @@ serve(async (req) => {
     console.error('🔍 Error stack:', error.stack)
     console.error('🔍 Error name:', error.name)
     console.error('🔍 Error message:', error.message)
+
+    // Log error to logs table with safe error handling
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      
+      if (supabaseUrl && supabaseServiceKey) {
+        const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+        
+        await safeLogError(supabaseClient, {
+          event_type: 'audio_generation_batch_failed',
+          status: 'error',
+          message: `Audio generation batch failed: ${error.message}`,
+          metadata: { 
+            error: error.toString(),
+            errorType: error.name,
+            batch_size: BATCH_SIZE
+          }
+        })
+      }
+    } catch (logError) {
+      console.error('🔍 Failed to log error to database:', logError)
+    }
 
     return new Response(
       JSON.stringify({

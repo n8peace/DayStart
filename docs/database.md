@@ -19,6 +19,8 @@
 
 **Note**: All tables and content generation functions are deployed to main branch (production). The generate-audio function and storage bucket are ready for deployment to develop branch.
 
+**Audio Generation**: The generate-audio function processes 5 content blocks per batch to match ElevenLabs' concurrency limit of 5 concurrent API requests.
+
 ## 📋 Table Definitions
 
 ### **1. users Table**

@@ -7,7 +7,7 @@ This Supabase Edge Function generates audio from script content using ElevenLabs
 The `generate-audio` function processes content blocks that have been successfully script-generated and converts them to audio files. It:
 
 1. Finds content blocks with `script_generated` status
-2. Processes up to 100 blocks per batch
+2. Processes up to 5 blocks per batch (matches ElevenLabs concurrency limit)
 3. Uses ElevenLabs API to generate audio from scripts
 4. Updates content blocks with audio URL, duration, and generation timestamp
 5. Moves status from `script_generated` → `audio_generating` → `ready`
@@ -93,6 +93,13 @@ The `audio_url` field contains the public URL to the stored audio file, which ca
 ## Usage
 
 This function is designed to be called manually or via scheduled triggers. It processes content blocks in priority order (by `content_priority` field) and creation date.
+
+## Concurrency Limits
+
+- **ElevenLabs API**: 5 concurrent requests maximum
+- **Batch Size**: 5 content blocks per execution
+- **Processing**: Sequential processing within each batch to respect API limits
+- **Retries**: Exponential backoff with maximum 3 attempts per content block
 
 ## Dependencies
 

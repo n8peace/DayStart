@@ -106,6 +106,13 @@ CREATE TABLE users (
 - Include error handling
 - Add input validation
 - Document function purpose
+- Respect external API concurrency limits
+
+**Concurrency Considerations:**
+- **ElevenLabs API**: 5 concurrent requests maximum
+- **OpenAI API**: Varies by tier, typically 3-10 concurrent requests
+- **Batch processing**: Adjust batch sizes to match API limits
+- **Sequential processing**: Process items sequentially within batches to avoid rate limiting
 
 **Example:**
 ```typescript
