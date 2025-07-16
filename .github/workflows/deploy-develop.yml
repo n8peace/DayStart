@@ -123,26 +123,78 @@ jobs:
         
         # Check if any functions exist before testing them
         if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
-          echo "Testing edge functions..."
-          # List available functions for testing
+          echo "Testing edge functions in parallel..."
+          
+          # Create a temporary file to store function names
+          temp_file=$(mktemp)
+          
+          # Collect all function names
           for func_dir in supabase/functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
-              echo "Testing $func_name function..."
-              response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
-                -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
-              
-              http_code=$(echo "$response" | tail -n1)
-              if [ "$http_code" = "200" ]; then
-                echo "✅ $func_name function is healthy"
-              elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
-                echo "✅ $func_name function is healthy (no weather data available - expected)"
-              else
-                echo "❌ $func_name function health check failed (HTTP $http_code)"
-                exit 1
-              fi
+              echo "$func_name" >> "$temp_file"
             fi
           done
+          
+          # Function to test a single function
+          test_function() {
+            local func_name=$1
+            echo "Testing $func_name function..."
+            
+            # Add timeout to curl to prevent hanging
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+            
+            http_code=$(echo "$response" | tail -n1)
+            if [ "$http_code" = "200" ]; then
+              echo "✅ $func_name function is healthy"
+              return 0
+            elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
+              echo "✅ $func_name function is healthy (no weather data available - expected)"
+              return 0
+            else
+              echo "❌ $func_name function health check failed (HTTP $http_code)"
+              return 1
+            fi
+          }
+          
+          # Export the function and variables for parallel execution
+          export -f test_function
+          export SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+          export SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          
+          # Run health checks in parallel with a maximum of 5 concurrent jobs
+          if command -v parallel >/dev/null 2>&1; then
+            # Use GNU parallel if available
+            parallel -j 5 test_function ::: $(cat "$temp_file")
+            parallel_status=$?
+          else
+            # Fallback to background jobs with wait
+            pids=()
+            while IFS= read -r func_name; do
+              test_function "$func_name" &
+              pids+=($!)
+            done < "$temp_file"
+            
+            # Wait for all background jobs to complete
+            parallel_status=0
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then
+                parallel_status=1
+              fi
+            done
+          fi
+          
+          # Clean up
+          rm -f "$temp_file"
+          
+          # Exit with the status from parallel execution
+          if [ $parallel_status -ne 0 ]; then
+            echo "❌ One or more health checks failed"
+            exit 1
+          fi
+          
+          echo "✅ All function health checks completed"
         else
           echo "⚠️ No functions to test - functions directory is empty"
         fi
