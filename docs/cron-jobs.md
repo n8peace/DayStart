@@ -19,6 +19,7 @@ Conservative scheduling focused on reliability and cost optimization.
 | `generate-markets-content` | Every 6 hours | `0 */6 * * *` | Market data and business news | Yahoo Finance, News API |
 | `generate-wake-up-content` | Daily | `0 2 * * *` | Morning wake-up messages | Calendarific |
 | `expiration-clean-up` | Daily | `0 3 * * *` | Clean up expired audio files | None |
+| `cleanup-stuck-content` | Every 30 minutes | `*/30 * * * *` | Clean up stuck processing blocks | None |
 | `health-check` | Hourly | `0 * * * *` | System monitoring and alerts | External APIs |
 
 ### **Develop Environment (Testing)**
@@ -34,6 +35,7 @@ Conservative scheduling for development and testing purposes.
 | `generate-markets-content` | Daily | `0 2 * * *` | Market data and business news | Yahoo Finance, News API |
 | `generate-wake-up-content` | Daily | `0 2 * * *` | Morning wake-up messages | Calendarific |
 | `expiration-clean-up` | Daily | `0 3 * * *` | Clean up expired audio files | None |
+| `cleanup-stuck-content` | Every 30 minutes | `*/30 * * * *` | Clean up stuck processing blocks | None |
 | `health-check` | Hourly | `0 * * * *` | System monitoring and alerts | External APIs |
 
 ## 🔄 Pipeline Flow
@@ -202,3 +204,30 @@ Content-Type: application/json
 - **Function timeouts** < 1%
 - **Storage cleanup** successful daily
 - **Health check alerts** responded to within 1 hour 
+
+## 🕒 Setting Up cleanup-stuck-content with cron-job.org
+
+To schedule the stuck content cleanup function using [cron-job.org](https://cron-job.org):
+
+1. **Go to** [https://cron-job.org](https://cron-job.org) and sign in or create an account.
+2. **Create a new cron job** with the following settings:
+
+- **URL:**
+  - Main: `https://your-project.supabase.co/functions/v1/cleanup-stuck-content`
+  - Develop: `https://your-project-dev.supabase.co/functions/v1/cleanup-stuck-content`
+- **Schedule:** Every 30 minutes (`*/30 * * * *`)
+- **HTTP Method:** POST
+- **Request Headers:**
+  - `Authorization: Bearer YOUR_SERVICE_ROLE_KEY`
+  - `Content-Type: application/json`
+- **Request Body:**
+  ```json
+  {}
+  ```
+- **Timeout:** 60 seconds (recommended)
+
+3. **Save the job.**
+
+**Notes:**
+- Replace `your-project.supabase.co` and `YOUR_SERVICE_ROLE_KEY` with your actual Supabase project URL and service role key.
+- This will ensure stuck content blocks are cleaned up automatically every 30 minutes. 
