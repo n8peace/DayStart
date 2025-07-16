@@ -390,19 +390,130 @@ async function processBatch(supabaseClient: any): Promise<{
       allErrors.push(...result.errors)
     }
 
-    console.log(`Audio generation batch complete: ${totalProcessed} processed, ${totalErrors} errors`)
+    return { 
+      success: totalProcessed > 0, 
+      processedCount: totalProcessed, 
+      totalErrors, 
+      errors: allErrors 
+    }
 
   } catch (error) {
-    console.error('Error in audio generation batch:', error)
-    allErrors.push(`Batch processing error: ${error.message}`)
-    totalErrors++
-  }
+    console.error('Error in processBatch:', error)
+    
+    // Log error to database
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_batch_failed',
+      status: 'error',
+      message: `Audio generation batch failed: ${error.message}`,
+      metadata: { 
+        error: error.toString(),
+        errorType: error.name,
+        batch_size: BATCH_SIZE
+      }
+    })
 
-  return { 
-    success: totalErrors === 0, 
-    processedCount: totalProcessed, 
-    totalErrors, 
-    errors: allErrors 
+    return { 
+      success: false, 
+      processedCount: totalProcessed, 
+      totalErrors: totalErrors + 1, 
+      errors: [...allErrors, error.message] 
+    }
+  }
+}
+
+async function processBatchAsync(supabaseClient: any): Promise<void> {
+  try {
+    console.log('🔄 Starting async batch processing')
+    
+    // Fetch content blocks ready for audio generation
+    const { data: contentBlocks, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('*')
+      .eq('status', 'script_generated')
+      .order('content_priority', { ascending: true })
+      .order('created_at', { ascending: true })
+      .limit(BATCH_SIZE)
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch content blocks: ${fetchError.message}`)
+    }
+
+    if (!contentBlocks || contentBlocks.length === 0) {
+      console.log('No content blocks found with script_generated status')
+      return
+    }
+
+    console.log(`Found ${contentBlocks.length} content blocks ready for audio generation`)
+
+    // Log batch start
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_async_batch_started',
+      status: 'info',
+      message: `Starting async audio generation batch for ${contentBlocks.length} content blocks`,
+      metadata: {
+        content_block_count: contentBlocks.length,
+        batch_size: BATCH_SIZE
+      }
+    })
+
+    // Process each content block asynchronously
+    const processingPromises = contentBlocks.map(async (contentBlock) => {
+      try {
+        // Mark as processing to prevent duplicate processing
+        const { error: updateError } = await supabaseClient
+          .from('content_blocks')
+          .update({ 
+            status: 'audio_generating', 
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', contentBlock.id)
+          .eq('status', 'script_generated') // Optimistic locking
+
+        if (updateError) {
+          console.error(`Failed to mark ${contentBlock.id} as processing:`, updateError)
+          return
+        }
+
+        // Process the content block
+        const result = await processContentBlock(supabaseClient, contentBlock)
+        
+        if (!result.success) {
+          console.error(`Failed to process content block ${contentBlock.id}:`, result.errors)
+        }
+      } catch (error) {
+        console.error(`Error processing content block ${contentBlock.id}:`, error)
+        
+        // Mark as failed
+        await supabaseClient
+          .from('content_blocks')
+          .update({ 
+            status: 'audio_failed',
+            updated_at: new Date().toISOString(),
+            retry_count: (contentBlock.retry_count || 0) + 1
+          })
+          .eq('id', contentBlock.id)
+      }
+    })
+
+    // Wait for all processing to complete
+    await Promise.allSettled(processingPromises)
+
+    console.log('🔄 Async batch processing completed')
+
+  } catch (error) {
+    console.error('🔄 Error in async batch processing:', error)
+    
+    // Log error to database
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_async_batch_failed',
+      status: 'error',
+      message: `Async audio generation batch failed: ${error.message}`,
+      metadata: { 
+        error: error.toString(),
+        errorType: error.name,
+        batch_size: BATCH_SIZE
+      }
+    })
   }
 }
 
@@ -473,7 +584,34 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
     console.log('🔍 Supabase client created successfully')
 
-    // Process batch
+    // Check if this is a cron job request (immediate response needed)
+    const isCronJob = req.headers.get('user-agent')?.includes('cron-job.org') || 
+                     req.headers.get('x-cron-job') === 'true'
+
+    if (isCronJob) {
+      console.log('🕐 Cron job detected - starting async processing')
+      
+      // Start async processing without waiting
+      processBatchAsync(supabaseClient).catch(error => {
+        console.error('🔄 Async processing error:', error)
+      })
+
+      // Return immediate success response
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Audio generation batch initiated asynchronously',
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
+
+    // For non-cron requests, process synchronously (for manual testing)
+    console.log('🔍 Processing synchronously for manual request')
     const result = await processBatch(supabaseClient)
 
     // Log batch completion

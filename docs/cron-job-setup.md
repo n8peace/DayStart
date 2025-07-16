@@ -16,6 +16,27 @@ This document provides the exact setup instructions for configuring cron jobs on
 2. Verify email address
 3. Note your account limits (free tier: 5 jobs, paid: unlimited)
 
+## ⚡ Async Processing Pattern
+
+### **How It Works**
+The `generate-script` and `generate-audio` functions now use an asynchronous processing pattern to prevent cron job timeouts:
+
+1. **Cron Job Detection**: Functions detect cron-job.org requests via User-Agent header
+2. **Immediate Response**: Return success immediately (within 10 seconds)
+3. **Background Processing**: Continue processing content blocks asynchronously
+4. **Status Tracking**: Use database status updates to track progress
+5. **Error Handling**: Comprehensive logging and retry mechanisms
+
+### **Benefits**
+- **No Timeouts**: Cron jobs complete successfully regardless of processing time
+- **Reliable Execution**: Processing continues even if cron job times out
+- **Better Monitoring**: Detailed logging of async processing events
+- **Manual Testing**: Non-cron requests still process synchronously for testing
+
+### **Status Flow**
+- **Script Generation**: `content_ready` → `script_generating` → `script_generated`/`script_failed`
+- **Audio Generation**: `script_generated` → `audio_generating` → `ready`/`audio_failed`
+
 ## 📋 Main Environment Setup (Production)
 
 ### **1. generate-script**
@@ -28,7 +49,7 @@ This document provides the exact setup instructions for configuring cron jobs on
   Content-Type: application/json
   ```
 - **Body**: `{}`
-- **Timeout**: 60 seconds
+- **Timeout**: 10 seconds (async processing - returns immediately)
 - **Retry**: 3 attempts, 2-minute intervals
 
 ### **2. generate-audio**
@@ -41,7 +62,7 @@ This document provides the exact setup instructions for configuring cron jobs on
   Content-Type: application/json
   ```
 - **Body**: `{}`
-- **Timeout**: 60 seconds
+- **Timeout**: 10 seconds (async processing - returns immediately)
 - **Retry**: 3 attempts, 2-minute intervals
 
 ### **3. generate-headlines-content**
@@ -147,7 +168,7 @@ This document provides the exact setup instructions for configuring cron jobs on
   Content-Type: application/json
   ```
 - **Body**: `{}`
-- **Timeout**: 60 seconds
+- **Timeout**: 10 seconds (async processing - returns immediately)
 - **Retry**: 3 attempts, 5-minute intervals
 
 ### **2. generate-audio**
@@ -160,7 +181,7 @@ This document provides the exact setup instructions for configuring cron jobs on
   Content-Type: application/json
   ```
 - **Body**: `{}`
-- **Timeout**: 60 seconds
+- **Timeout**: 10 seconds (async processing - returns immediately)
 - **Retry**: 3 attempts, 5-minute intervals
 
 ### **3. generate-headlines-content**
