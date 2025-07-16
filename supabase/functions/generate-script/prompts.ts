@@ -19,6 +19,15 @@ const VOICE_INSTRUCTIONS = {
   voice_3: `Write with a steady, neutral tone. Use clear, confident phrasing with a medium cadence. Avoid emotional highs or lows — stay balanced and grounded. Pause occasionally for emphasis. Speak like a trusted narrator offering facts, encouragement, and thoughtful perspective to start the day smoothly.`
 }
 
+// Global formatting restrictions
+const FORMATTING_RESTRICTIONS = `
+CRITICAL FORMATTING RULES:
+- NEVER include background music references like "[soft ambient music begins]", "[music fades]", or any music-related text
+- NEVER use emojis in the response
+- Write only the spoken content that will be converted to audio
+- Do not include stage directions, sound effects, or production notes
+- Focus purely on the verbal content that ElevenLabs will speak`
+
 // Valid content types for validation
 export const VALID_CONTENT_TYPES = [
   'wake_up', 'stretch', 'challenge', 'weather', 'encouragement',
@@ -33,7 +42,9 @@ export const CONTENT_PROMPTS: Record<ContentType, ContentPrompt> = {
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, dayOfWeek, holidayData } = params
       return `Review and refine this wake-up message for ${date} (${dayOfWeek}):
@@ -65,7 +76,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, timeAvailable } = params
       return `Review and refine this morning stretch routine for ${date}:
@@ -95,7 +108,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userGoals, challengeType } = params
       return `Review and refine this daily challenge for ${date}:
@@ -129,7 +144,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, location, weatherData } = params
       return `Review and refine this weather report for ${date} in ${location}:
@@ -160,7 +177,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, encouragementType } = params
       return `Review and refine this encouraging message for ${date}:
@@ -190,7 +209,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userInterests } = params
       return `Review and refine this headlines summary for ${date}:
@@ -223,7 +244,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userTeams, sportType, recentGames } = params
       return `Review and refine this sports update for ${date}:
@@ -258,7 +281,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, marketData, userInvestments, marketFocus } = params
       return `Review and refine this markets update for ${date}:
@@ -291,7 +316,9 @@ Format the response as plain text for ElevenLabs.`
 
 Write for ElevenLabs and use appropriate formatting.
 
-Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}`,
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { userName, reminders, date, reminderTone } = params
       return `Review and refine these personalized reminders for ${userName} on ${date}:
