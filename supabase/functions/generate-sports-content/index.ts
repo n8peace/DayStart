@@ -41,78 +41,114 @@ serve(async (req) => {
 
     // Get today's date for sports data lookup
 
-    // Fetch sports data from SportsDB API for today's events
-    let sportsDbData = null
-    let sportsDbError = null
-    try {
-      const sportsDbApiKey = Deno.env.get('SPORTSDB_API_KEY') || '123' // Use free key if not configured
-              const sportsDbResponse = await fetch(`https://www.thesportsdb.com/api/v1/json/${sportsDbApiKey}/eventsday.php?d=${utcDate}`)
-      if (sportsDbResponse.ok) {
-        sportsDbData = await sportsDbResponse.json()
-      } else {
-        sportsDbError = `SportsDB API failed: ${sportsDbResponse.status}`
+    // Fetch US sports data from multiple ESPN APIs
+    const usSports = [
+      { sport: 'football', league: 'nfl', name: 'NFL' },
+      { sport: 'basketball', league: 'nba', name: 'NBA' },
+      { sport: 'baseball', league: 'mlb', name: 'MLB' },
+      { sport: 'hockey', league: 'nhl', name: 'NHL' }
+    ]
+
+    const sportsData = {}
+    const sportsErrors = {}
+
+    // Fetch data for each major US sport
+    for (const sport of usSports) {
+      try {
+        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.sport}/${sport.league}/scoreboard`)
+        if (response.ok) {
+          sportsData[sport.name] = await response.json()
+        } else {
+          sportsErrors[sport.name] = `ESPN ${sport.name} API failed: ${response.status}`
+        }
+      } catch (error) {
+        sportsErrors[sport.name] = `ESPN ${sport.name} API error: ${error.message}`
       }
-    } catch (error) {
-      sportsDbError = `SportsDB API error: ${error.message}`
     }
 
-    // Fetch sports data from ESPN API
-    let espnData = null
-    let espnError = null
+    // Fetch NCAA Football and Basketball data
     try {
-      const espnResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
-      if (espnResponse.ok) {
-        espnData = await espnResponse.json()
+      const ncaaFootballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard')
+      if (ncaaFootballResponse.ok) {
+        sportsData['NCAA Football'] = await ncaaFootballResponse.json()
       } else {
-        espnError = `ESPN API failed: ${espnResponse.status}`
+        sportsErrors['NCAA Football'] = `ESPN NCAA Football API failed: ${ncaaFootballResponse.status}`
       }
     } catch (error) {
-      espnError = `ESPN API error: ${error.message}`
+      sportsErrors['NCAA Football'] = `ESPN NCAA Football API error: ${error.message}`
+    }
+
+    try {
+      const ncaaBasketballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard')
+      if (ncaaBasketballResponse.ok) {
+        sportsData['NCAA Basketball'] = await ncaaBasketballResponse.json()
+      } else {
+        sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API failed: ${ncaaBasketballResponse.status}`
+      }
+    } catch (error) {
+      sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API error: ${error.message}`
     }
 
     // Log API calls
-    await supabaseClient
-      .from('logs')
-      .insert([
-        {
-          event_type: 'api_call',
-          status: sportsDbError ? 'error' : 'success',
-          message: sportsDbError || 'SportsDB API data fetched successfully',
-          metadata: { api: 'sportsdb_api' }
-        },
-        {
-          event_type: 'api_call',
-          status: espnError ? 'error' : 'success',
-          message: espnError || 'ESPN API data fetched successfully',
-          metadata: { api: 'espn_api' }
-        }
-      ])
-
-    // Create content summary
-    let content = 'Sports Update: '
-    const sportsEvents = []
-
-    if (sportsDbData?.events) {
-      sportsDbData.events.slice(0, 3).forEach((event: any) => {
-        sportsEvents.push(`${event.strEvent} on ${event.dateEvent}`)
+    const logEntries = []
+    for (const [sport, error] of Object.entries(sportsErrors)) {
+      logEntries.push({
+        event_type: 'api_call',
+        status: 'error',
+        message: error,
+        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
+      })
+    }
+    
+    // Add success logs for sports with data
+    for (const sport of Object.keys(sportsData)) {
+      logEntries.push({
+        event_type: 'api_call',
+        status: 'success',
+        message: `${sport} data fetched successfully`,
+        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
       })
     }
 
-    if (espnData?.events) {
-      espnData.events.slice(0, 2).forEach((event: any) => {
-        const homeTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.team?.name
-        const awayTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.team?.name
-        const date = event.date
-        if (homeTeam && awayTeam) {
-          sportsEvents.push(`${awayTeam} vs ${homeTeam} on ${date}`)
-        }
-      })
+    if (logEntries.length > 0) {
+      await supabaseClient
+        .from('logs')
+        .insert(logEntries)
+    }
+
+    // Create US-centric sports content summary
+    let content = 'US Sports Update: '
+    const sportsEvents = []
+    const sportsHighlights = []
+
+    // Process each sport's data
+    for (const [sportName, sportData] of Object.entries(sportsData)) {
+      if (sportData?.events) {
+        // Get today's games
+        const todayGames = sportData.events.slice(0, 3)
+        
+        todayGames.forEach((event: any) => {
+          const homeTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.team?.name
+          const awayTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.team?.name
+          const homeScore = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.score
+          const awayScore = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.score
+          const status = event.status?.type?.name
+          
+          if (homeTeam && awayTeam) {
+            if (status === 'STATUS_FINAL' && homeScore && awayScore) {
+              sportsEvents.push(`${sportName}: ${awayTeam} ${awayScore} - ${homeTeam} ${homeScore}`)
+            } else {
+              sportsEvents.push(`${sportName}: ${awayTeam} at ${homeTeam}`)
+            }
+          }
+        })
+      }
     }
 
     if (sportsEvents.length > 0) {
       content += sportsEvents.join('. ')
     } else {
-      content += 'No sports events available'
+      content += 'No major US sports events today'
     }
 
     // Create content block
@@ -121,13 +157,12 @@ serve(async (req) => {
       date: utcDate,
       content: content,
       parameters: {
-        sportsdb_data: sportsDbData,
-        espn_data: espnData,
-        sportsdb_error: sportsDbError,
-        espn_error: espnError,
-        sports_events: sportsEvents
+        sports_data: sportsData,
+        sports_errors: sportsErrors,
+        sports_events: sportsEvents,
+        us_sports_focus: true
       },
-      status: (sportsDbError && espnError) ? 'content_failed' : 'content_ready',
+      status: Object.keys(sportsErrors).length === Object.keys(sportsData).length ? 'content_failed' : 'content_ready',
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -158,8 +193,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         content_block: data,
-        sportsdb_error: sportsDbError,
-        espn_error: espnError
+        sports_errors: sportsErrors,
+        sports_data_summary: Object.keys(sportsData)
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

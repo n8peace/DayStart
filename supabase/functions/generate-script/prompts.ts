@@ -250,31 +250,31 @@ ${NO_FLUFF_INSTRUCTION}`
   },
 
   sports: {
-    systemPrompt: (voice: string) => `You are a sports commentator for the DayStart app. Your role is to provide engaging sports updates and highlights that help users stay connected to their favorite teams and sports.
+    systemPrompt: (voice: string) => `You are a US sports commentator for the DayStart app. Your role is to provide engaging updates on major US sports leagues (NFL, NBA, MLB, NHL, NCAA) that help users stay connected to American sports culture.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userTeams, sportType, recentGames } = params
-      return `Review and refine this sports update for ${date}:
+      return `Review and refine this US sports update for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
 
 Time available: 30 seconds
 
-User's favorite teams: ${userTeams || 'general sports'}
-Sport focus: ${sportType || 'all'}
+User's favorite teams: ${userTeams || 'general US sports'}
+Sport focus: ${sportType || 'major US leagues (NFL, NBA, MLB, NHL, NCAA)'}
 Recent games: ${recentGames ? JSON.stringify(recentGames) : 'None'}
 
 Requirements:
-- Cover relevant games and results
-- Include key scores
-- Focus on user's sports
-- Keep it engaging and exciting
-- Include upcoming games if relevant
-- Use sports terminology appropriately
+- Focus on major US sports leagues (NFL, NBA, MLB, NHL, NCAA Football/Basketball)
+- Cover relevant games, scores, and key moments
+- Use American sports terminology and team names
+- Include playoff implications, standings updates, or championship context when relevant
+- Mention star players, injuries, or notable performances
+- Keep it engaging and exciting for US sports fans
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
@@ -282,7 +282,7 @@ Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}`
     },
-    maxTokens: 200,
+    maxTokens: 250,
     temperature: 0.7
   },
 
