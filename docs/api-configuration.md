@@ -10,7 +10,7 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # External APIs
-ABSTRACTS_API_KEY=your_abstracts_api_key
+CALENDARIFIC_API_KEY=your_calendarific_api_key
 NEWS_API_KEY=your_news_api_key
 GNEWS_API_KEY=your_gnews_api_key
 SPORTSDB_API_KEY=your_sportsdb_api_key  # Optional, defaults to free key '123'
@@ -19,10 +19,10 @@ RAPID_API_KEY=your_rapid_api_key
 
 ## 📡 API Endpoints & Configuration
 
-### **1. Abstracts API (Holidays)**
-- **Endpoint**: `https://holidays.abstractapi.com/v1/`
+### **1. Calendarific API (Holidays)**
+- **Endpoint**: `https://calendarific.com/api/v2/holidays`
 - **Parameters**: `api_key`, `country=US`, `year`, `month`, `day`
-- **Example**: `https://holidays.abstractapi.com/v1/?api_key=KEY&country=US&year=2025&month=12&day=25`
+- **Example**: `https://calendarific.com/api/v2/holidays?api_key=KEY&country=US&year=2025&month=12&day=25`
 - **Used by**: `generate-wake-up-content`
 
 ### **2. News API**
@@ -73,7 +73,7 @@ RAPID_API_KEY=your_rapid_api_key
 ### **Other APIs**
 - **News API**: 100 requests per day (free tier)
 - **GNews API**: 100 requests per day (free tier)
-- **Abstracts API**: 1000 requests per month (free tier)
+- **Calendarific API**: 1000 requests per month (free tier)
 - **Rapid API**: Varies by plan
 
 ## 🚨 Error Handling

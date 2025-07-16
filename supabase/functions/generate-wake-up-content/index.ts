@@ -76,23 +76,27 @@ serve(async (req) => {
       console.log('No previous wake-up message found or error:', error)
     }
 
-    // Fetch holiday data from Abstracts API
+    // Fetch holiday data from Calendarific API
     let holidayData = null
     let holidayError = null
     try {
-      const abstractsApiKey = Deno.env.get('ABSTRACTS_API_KEY')
-      if (abstractsApiKey) {
-        const holidayResponse = await fetch(`https://holidays.abstractapi.com/v1/?api_key=${abstractsApiKey}&country=US&year=${new Date().getFullYear()}&date=${tomorrowDate}`)
+      const calendarificApiKey = Deno.env.get('CALENDARIFIC_API_KEY')
+      if (calendarificApiKey) {
+        const currentYear = new Date().getFullYear()
+        const [year, month, day] = tomorrowDate.split('-')
+        
+        const holidayResponse = await fetch(`https://calendarific.com/api/v2/holidays?api_key=${calendarificApiKey}&country=US&year=${currentYear}&month=${parseInt(month)}&day=${parseInt(day)}`)
         if (holidayResponse.ok) {
-          holidayData = await holidayResponse.json()
+          const responseData = await holidayResponse.json()
+          holidayData = responseData.response?.holidays || []
         } else {
-          holidayError = `Holiday API failed: ${holidayResponse.status}`
+          holidayError = `Calendarific API failed: ${holidayResponse.status}`
         }
       } else {
-        holidayError = 'Abstracts API key not configured'
+        holidayError = 'Calendarific API key not configured'
       }
     } catch (error) {
-      holidayError = `Holiday API error: ${error.message}`
+      holidayError = `Calendarific API error: ${error.message}`
     }
 
     // Log API call
@@ -101,8 +105,8 @@ serve(async (req) => {
       .insert({
         event_type: 'api_call',
         status: holidayError ? 'error' : 'success',
-        message: holidayError || 'Holiday data fetched successfully',
-        metadata: { api: 'abstracts_holiday', date: tomorrowDate }
+        message: holidayError || 'Calendarific holiday data fetched successfully',
+        metadata: { api: 'calendarific_holiday', date: tomorrowDate }
       })
 
     // Create content block

@@ -37,7 +37,7 @@ This document tracks all rate limits for external APIs, Supabase services, and e
 - **Current Usage**: ~1 request per day
 - **Status**: ✅ Well within limits (using 1% of daily quota)
 
-### **4. Abstracts API (Holidays)**
+### **4. Calendarific API (Holidays)**
 - **Service**: Holiday data for wake-up content
 - **Rate Limit**: 
   - **Free Tier**: 1,000 requests per month
@@ -45,7 +45,7 @@ This document tracks all rate limits for external APIs, Supabase services, and e
   - **Standard**: 100,000 requests per month ($19.99/month)
 - **Used by**: `generate-wake-up-content`
 - **Current Usage**: ~1 request per day
-- **Status**: ✅ Well within limits
+- **Status**: ✅ Well within limits (using 3% of monthly quota)
 
 ### **5. ESPN API**
 - **Service**: US sports data (NFL, NBA, MLB, NHL, NCAA)
@@ -122,7 +122,7 @@ This document tracks all rate limits for external APIs, Supabase services, and e
 - **OpenAI**: 10-20 calls (script generation)
 - **News API**: 2 calls (headlines + business)
 - **GNews**: 1 call (backup headlines)
-- **Abstracts**: 1 call (holidays)
+- **Calendarific**: 1 call (holidays)
 - **ESPN**: 6 calls (6 sports leagues)
 - **Rapid API**: 1 call (markets)
 - **Total**: ~21-31 external API calls per day
@@ -184,7 +184,7 @@ This document tracks all rate limits for external APIs, Supabase services, and e
 - [OpenAI Rate Limits](https://platform.openai.com/docs/guides/rate-limits)
 - [News API Pricing](https://newsapi.org/pricing)
 - [GNews API Pricing](https://gnews.io/pricing)
-- [Abstracts API Pricing](https://www.abstractapi.com/api/holidays-api/pricing)
+- [Calendarific API Pricing](https://calendarific.com/pricing)
 - [Rapid API Pricing](https://rapidapi.com/apidojo/api/yahoo-finance1)
 - [Supabase Pro Limits](https://supabase.com/pricing)
 
