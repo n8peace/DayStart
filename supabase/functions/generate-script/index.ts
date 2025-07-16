@@ -508,29 +508,56 @@ async function processContentBlock(
 }
 
 serve(async (req) => {
+  console.log('🔍 generate-script function called')
+  console.log('🔍 Request method:', req.method)
+  console.log('🔍 Request URL:', req.url)
+  
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log('🔍 Handling CORS preflight')
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Handle health check requests
+  // Handle health check requests - more explicit handling
   const url = new URL(req.url)
-  if (url.pathname === '/health' || req.method === 'GET') {
-    return new Response(
-      JSON.stringify({
+  console.log('🔍 URL pathname:', url.pathname)
+  
+  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
+    console.log('🔍 Handling health check request')
+    try {
+      const response = {
         status: 'healthy',
         function: 'generate-script',
         timestamp: new Date().toISOString()
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
       }
-    )
+      console.log('🔍 Health check response:', response)
+      return new Response(
+        JSON.stringify(response),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    } catch (healthError) {
+      console.error('🔍 Health check error:', healthError)
+      return new Response(
+        JSON.stringify({
+          status: 'error',
+          function: 'generate-script',
+          error: healthError.message,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
   }
 
-  // Validate HTTP method
+  // Validate HTTP method for non-health check requests
   if (req.method !== 'POST') {
+    console.log('🔍 Invalid method:', req.method)
     return new Response(
       JSON.stringify({ 
         success: false, 
