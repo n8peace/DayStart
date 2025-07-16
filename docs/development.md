@@ -182,7 +182,8 @@ DayStart/
 ├── supabase/              # Backend configuration
 │   ├── functions/         # Edge functions
 │   │   ├── generate-script/      # Script generation
-│   │   ├── generate-audio/       # Audio generation (NEW)
+│   │   ├── generate-audio/       # Audio generation
+│   │   ├── expiration-clean-up/  # Cleanup expired content
 │   │   ├── generate-*-content/   # Content generation functions
 │   │   └── ...
 │   ├── migrations/        # Database migrations

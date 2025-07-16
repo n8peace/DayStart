@@ -115,6 +115,7 @@ This document tracks all rate limits for external APIs, Supabase services, and e
 | `generate-weather-content` | ~1 | <5s | <50MB |
 | `generate-encouragement-content` | ~1 | <5s | <50MB |
 | `generate-script` | ~10-20 | <30s | <100MB |
+| `expiration-clean-up` | ~1 | <10s | <50MB |
 
 ## 📈 Daily Usage Summary
 
