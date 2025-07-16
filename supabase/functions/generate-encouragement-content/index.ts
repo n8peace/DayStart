@@ -39,8 +39,8 @@ serve(async (req) => {
     tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
     const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now) in UTC
-    const expirationDate = new Date()
+    // Get expiration date (72 hours from target date) in UTC
+    const expirationDate = new Date(utcDate)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 

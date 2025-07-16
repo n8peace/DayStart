@@ -47,8 +47,8 @@ serve(async (req) => {
     // Get day of the week for tomorrow
     const dayOfWeek = tomorrowUtc.toLocaleDateString('en-US', { weekday: 'long' })
 
-    // Get expiration date (72 hours from now) in UTC
-    const expirationDate = new Date()
+    // Get expiration date (72 hours from target date) in UTC
+    const expirationDate = new Date(tomorrowDate)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 

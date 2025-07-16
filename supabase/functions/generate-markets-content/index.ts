@@ -34,8 +34,8 @@ serve(async (req) => {
     // Get UTC date for markets content
     const utcDate = new Date().toISOString().split('T')[0]
 
-    // Get expiration date (72 hours from now) in UTC
-    const expirationDate = new Date()
+    // Get expiration date (72 hours from target date) in UTC
+    const expirationDate = new Date(utcDate)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
