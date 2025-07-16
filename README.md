@@ -15,7 +15,7 @@ DayStart transforms the morning routine by combining:
 - **Frontend**: SwiftUI iOS app
 - **Backend**: Supabase (PostgreSQL + Edge Functions + Storage)
 - **AI**: GPT-4o for morning script generation
-- **Voice**: ElevenLabs v3 for high-quality voice synthesis
+- **Voice**: ElevenLabs Multilingual v2 for high-quality voice synthesis
 - **Storage**: Supabase Storage for audio file management
 - **CI/CD**: GitHub Actions, with `develop` and `main` branch strategy
 

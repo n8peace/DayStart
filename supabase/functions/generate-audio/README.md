@@ -1,6 +1,6 @@
 # Generate Audio Function
 
-This Supabase Edge Function generates audio from script content using ElevenLabs Text-to-Speech API.
+This Supabase Edge Function generates audio from script content using ElevenLabs Text-to-Speech API with the Eleven Multilingual v2 model.
 
 ## Overview
 
@@ -8,17 +8,25 @@ The `generate-audio` function processes content blocks that have been successful
 
 1. Finds content blocks with `script_generated` status
 2. Processes up to 5 blocks per batch (matches ElevenLabs concurrency limit)
-3. Uses ElevenLabs API to generate audio from scripts
+3. Uses ElevenLabs Multilingual v2 API to generate audio from scripts
 4. Updates content blocks with audio URL, duration, and generation timestamp
 5. Moves status from `script_generated` → `audio_generating` → `ready`
 
 ## Voice Configuration
 
-The function supports three ElevenLabs voices:
+The function supports three ElevenLabs voices using the Eleven Multilingual v2 model:
 
 - **voice_1 (Grace)**: Female meditative wake-up voice - soft pacing and calm rhythm
 - **voice_2 (Adam)**: Male drill sergeant voice - high energy and commanding authority  
 - **voice_3 (Matthew)**: Male narrative voice - calm, neutral tone and medium pacing
+
+### Model Specifications
+
+- **Model**: Eleven Multilingual v2
+- **Languages**: 29+ languages supported
+- **Character Limit**: 5,000 characters per request
+- **Quality**: High-quality multilingual speech synthesis with good emotion control
+- **Features**: Support for multiple languages in single request
 
 ## API Endpoint
 

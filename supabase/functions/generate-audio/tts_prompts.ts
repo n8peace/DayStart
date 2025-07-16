@@ -25,17 +25,17 @@ export interface TTSRequest {
 }
 
 // ElevenLabs Voice Mappings
-// Using Eleven v3 model: Most emotionally rich, expressive speech synthesis
-// - 70+ languages supported
-// - 10,000 character limit
-// - Dramatic delivery and performance
-// - Support for natural multi-speaker dialogue
+// Using Eleven Multilingual v2 model: High-quality multilingual speech synthesis
+// - 29+ languages supported
+// - 5,000 character limit
+// - Natural speech with good emotion control
+// - Support for multiple languages in single request
 export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
   voice_1: {
     voiceId: 'pNInz6obpgDQGcFmaJgB', // Grace - female meditative wake up voice
     name: 'Grace',
     description: 'Female meditative wake up voice - soft pacing and calm rhythm',
-    modelId: 'eleven_v3',
+    modelId: 'eleven_multilingual_v2',
     stability: 0.5,
     similarityBoost: 0.75,
     style: 0.0,
@@ -45,7 +45,7 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
     voiceId: 'pFZP5JQG7iQjIQuC4Bku', // Adam - male drill sergeant voice
     name: 'Adam', 
     description: 'Male drill sergeant voice - high energy and commanding authority',
-    modelId: 'eleven_v3',
+    modelId: 'eleven_multilingual_v2',
     stability: 0.3,
     similarityBoost: 0.75,
     style: 0.0,
@@ -55,7 +55,7 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
     voiceId: 'VR6AewLTigWG4xSOukaG', // Matthew - male narrative voice
     name: 'Matthew',
     description: 'Male narrative voice - calm, neutral tone and medium pacing',
-    modelId: 'eleven_v3',
+    modelId: 'eleven_multilingual_v2',
     stability: 0.4,
     similarityBoost: 0.75,
     style: 0.0,
@@ -69,17 +69,17 @@ export const DEFAULT_VOICE = 'voice_3'
 // ElevenLabs API Configuration
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'
 export const ELEVEN_LABS_TIMEOUT_MS = 60000 // 60 seconds for audio generation
-export const ELEVEN_V3_CHAR_LIMIT = 10000 // Eleven v3 character limit
+export const ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT = 5000 // Eleven Multilingual v2 character limit
 export const DEFAULT_OUTPUT_FORMAT = 'mp3' // Default audio format
 
 // Voice-specific text preprocessing
 export function preprocessTextForVoice(text: string, voice: string): string {
   const voiceConfig = VOICE_CONFIGS[voice] || VOICE_CONFIGS[DEFAULT_VOICE]
   
-  // Check character limit for Eleven v3
-  if (text.length > ELEVEN_V3_CHAR_LIMIT) {
-    console.warn(`Text length (${text.length}) exceeds Eleven v3 limit (${ELEVEN_V3_CHAR_LIMIT}). Truncating.`)
-    text = text.substring(0, ELEVEN_V3_CHAR_LIMIT)
+  // Check character limit for Eleven Multilingual v2
+  if (text.length > ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT) {
+    console.warn(`Text length (${text.length}) exceeds Eleven Multilingual v2 limit (${ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT}). Truncating.`)
+    text = text.substring(0, ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT)
   }
   
   // Remove any unsupported SSML tags that might have been added
