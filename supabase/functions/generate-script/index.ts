@@ -513,12 +513,28 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Handle health check requests
+  const url = new URL(req.url)
+  if (url.pathname === '/health' || req.method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        status: 'healthy',
+        function: 'generate-script',
+        timestamp: new Date().toISOString()
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
+    )
+  }
+
   // Validate HTTP method
-  if (req.method !== 'POST' && req.method !== 'GET') {
+  if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: `Method ${req.method} not allowed. Use POST or GET.` 
+        error: `Method ${req.method} not allowed. Use POST.` 
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
