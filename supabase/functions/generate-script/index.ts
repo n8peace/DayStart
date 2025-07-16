@@ -129,7 +129,7 @@ async function generateScriptForVoice(
     // Call GPT-4o API with timeout
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured')
+      return { success: false, error: 'OpenAI API key not configured - script generation unavailable' }
     }
 
     const controller = new AbortController()
@@ -537,8 +537,10 @@ serve(async (req) => {
       throw new Error('Missing required Supabase environment variables')
     }
 
+    // For health checks, allow the function to respond even without OpenAI key
+    // The actual script generation will fail gracefully if no key is available
     if (!openaiApiKey) {
-      throw new Error('Missing OpenAI API key')
+      console.warn('OpenAI API key not configured - script generation will be limited')
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
