@@ -199,6 +199,30 @@ Use timestamp format: `YYYYMMDDHHMMSS_description.sql`
 
 Example: `20240101120000_create_users_table.sql`
 
+## 📅 Recent Deployments
+
+### 2025-01-15: Content Generation Status Updates
+**Migration**: `20250101000008_add_content_ready_status.sql`
+
+**Changes:**
+- ✅ Added `content_ready` status for successful content generation
+- ✅ Added `content_failed` status for failed content generation
+- ✅ Updated all 6 content generation functions to use new statuses
+- ✅ Updated queries to exclude `content_failed` content when looking for previous content
+
+**Functions Updated:**
+1. `generate-wake-up-content` - Priority 1
+2. `generate-weather-content` - Priority 2  
+3. `generate-headlines-content` - Priority 3
+4. `generate-sports-content` - Priority 4
+5. `generate-markets-content` - Priority 5
+6. `generate-encouragement-content` - Priority 6
+
+**Status Flow:**
+- Success: `content_ready` status
+- Failure: `content_failed` status (or no content block created)
+- Previous content queries exclude `content_failed` status
+
 ## 🔍 Troubleshooting
 
 ### Common Issues
@@ -227,6 +251,39 @@ Error: Project not found
 2. Check Supabase access token has proper permissions
 3. Ensure project exists and is accessible
 
+#### Function Health Check Failures
+
+##### HTTP 500 Errors (Function Runtime Errors)
+```
+❌ generate-headlines-content function health check failed (HTTP 500)
+```
+**Common Causes:**
+1. **Invalid Database Status Values**: Functions using status values not in database constraints
+   - **Solution**: Ensure functions use valid status values from schema
+   - **Valid Statuses**: `'pending'`, `'script_generating'`, `'script_generated'`, `'audio_generating'`, `'ready'`, `'script_failed'`, `'audio_failed'`, `'failed'`, `'expired'`, `'retry_pending'`
+   - **Invalid Statuses**: `'content_ready'`, `'content_failed'` (not in schema)
+
+2. **Missing Environment Variables**: Required API keys or Supabase credentials not set
+   - **Solution**: Add missing environment variables to Supabase function settings
+   - **Common Missing Variables**: `NEWS_API_KEY`, `GNEWS_API_KEY`, `WEATHER_API_KEY`, etc.
+
+3. **External API Timeouts**: Functions hanging on external API calls
+   - **Solution**: Functions now include 10-second timeouts for external API calls
+
+##### HTTP 400 Errors (Expected Business Logic)
+```
+❌ generate-weather-content function health check failed (HTTP 400)
+```
+**Expected Behavior**: Some functions return 400 when no data is available to process
+- **Weather Function**: Returns 400 when no weather data exists in `user_weather_data` table
+- **Solution**: Health checks are configured to accept 400 responses from weather function as healthy
+
+#### Legacy Function Cleanup
+**Issue**: Old functions remain in Supabase after updates
+**Solution**: Deployment workflows now automatically remove legacy functions before deploying new ones
+- **Legacy Functions Removed**: `generate-message`, `test-voice`
+- **Process**: Functions are deleted during deployment, then new functions are deployed
+
 ### Debug Commands
 ```bash
 # Check Supabase CLI status
@@ -248,6 +305,56 @@ supabase projects list
 
 ### Supabase Dashboard
 - Check database status in Database section
+
+## 🎓 Lessons Learned & Best Practices
+
+### Function Development
+1. **Database Schema Compliance**: Always verify function code matches database constraints
+   - Check status values against schema constraints
+   - Ensure column names and types match exactly
+   - Test database operations locally before deployment
+
+2. **Environment Variable Management**: 
+   - Set all required environment variables in Supabase function settings
+   - Use descriptive error messages when variables are missing
+   - Implement graceful fallbacks for optional variables
+
+3. **External API Integration**:
+   - Always implement timeouts for external API calls (10 seconds recommended)
+   - Handle API failures gracefully without breaking the entire function
+   - Log API call results for debugging
+
+4. **Error Handling Patterns**:
+   - Use try-catch blocks around all external operations
+   - Log errors with sufficient detail for debugging
+   - Return appropriate HTTP status codes (400 for business logic failures, 500 for system errors)
+
+### Health Check Strategy
+1. **Function-Specific Logic**: Different functions may have different "healthy" states
+   - Weather function: 400 is healthy when no data available
+   - Content functions: 200 is healthy when content generated
+   - API functions: 200 is healthy when APIs respond
+
+2. **Graceful Degradation**: Functions should handle missing data gracefully
+   - Return appropriate status codes for different failure modes
+   - Provide clear error messages for debugging
+   - Continue operation when possible even with partial failures
+
+### Deployment Workflow
+1. **Legacy Cleanup**: Always remove old functions before deploying new ones
+   - Prevents confusion about which functions are active
+   - Ensures clean deployment state
+   - Reduces potential conflicts
+
+2. **Incremental Testing**: Test functions individually before full deployment
+   - Use health checks to verify each function
+   - Monitor logs for specific function issues
+   - Fix issues before proceeding to production
+
+3. **Environment Parity**: Keep development and production workflows synchronized
+   - Apply the same fixes to both environments
+   - Use consistent health check logic
+   - Maintain similar error handling patterns
 - Review deployment history in Settings → GitHub
 
 ## 🔒 Security Considerations

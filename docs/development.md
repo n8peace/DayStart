@@ -88,6 +88,8 @@ docs(setup): update environment configuration
 - Keep migrations small and focused
 - Never modify existing migrations
 - Test locally before committing
+- **NEVER migrate directly to Supabase** - all changes must go through GitHub workflow
+- Deploy via GitHub Actions to develop/main branches only
 
 **Example:**
 ```sql

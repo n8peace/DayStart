@@ -30,19 +30,7 @@ The DayStart iOS app is a hyper-personalized, AI-powered alarm clock built with 
 - **Brief Summaries**: Concise news highlights for quick consumption
 - **Source Diversity**: Multiple news sources for balanced coverage
 
-### 🧘 Morning Stretch
-- **Guided Routines**: Step-by-step stretching instructions
-- **Duration Options**: Short (2-3 min) and extended (5-7 min) routines
-- **Difficulty Levels**: Beginner, intermediate, and advanced stretches
-- **Voice Guidance**: Clear audio instructions for each movement
-- **Visual Aids**: Optional on-screen demonstrations
 
-### 🧩 Morning Challenge
-- **Math Problems**: Quick mental arithmetic to engage the brain
-- **Logic Puzzles**: Riddles and brain teasers
-- **Difficulty Scaling**: Adaptive difficulty based on user performance
-- **Success Tracking**: Monitor challenge completion rates
-- **Skip Option**: Users can skip challenges if needed
 
 ### ⚽ Sports Highlights
 - **Latest Scores**: Overnight game results and standings
@@ -123,9 +111,8 @@ The DayStart iOS app is a hyper-personalized, AI-powered alarm clock built with 
 ### Daily Flow
 1. **Alarm Trigger**: Gentle wake-up with personalized message
 2. **Content Delivery**: Weather, news, and other selected content
-3. **Interactive Elements**: Stretches, challenges, and engagement
-4. **Reminder Review**: Daily tasks and appointments
-5. **Motivational Close**: Encouraging outro message
+3. **Reminder Review**: Daily tasks and appointments
+4. **Motivational Close**: Encouraging outro message
 
 ### Settings & Customization
 - **Content Preferences**: Enable/disable specific features

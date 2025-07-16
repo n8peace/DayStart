@@ -10,13 +10,13 @@
 5. `logs` - System-wide logging and monitoring
 
 ### **Deployment Status**
-- ✅ `users` - Deployed to develop branch
-- ✅ `content_blocks` - Deployed to develop branch  
-- ✅ `user_preferences` - Deployed to develop branch
-- ✅ `logs` - Deployed to develop branch
-- ✅ `user_weather_data` - Deployed to develop branch
+- ✅ `users` - Deployed to main branch (production)
+- ✅ `content_blocks` - Deployed to main branch (production)
+- ✅ `user_preferences` - Deployed to main branch (production)
+- ✅ `logs` - Deployed to main branch (production)
+- ✅ `user_weather_data` - Deployed to main branch (production)
 
-**Note**: All tables are currently deployed to the `develop` branch only. Production deployment to `main` branch will occur when ready for release.
+**Note**: All tables are now deployed to both `develop` and `main` branches. Production environment is live and ready for iOS app development.
 
 ## 📋 Table Definitions
 
@@ -38,7 +38,7 @@
 - Users can only access their own data
 
 ### **2. content_blocks Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -46,6 +46,7 @@
 | `user_id` | UUID | Foreign key to users table (nullable for shared content) |
 | `date` | DATE | The date this content is for (morning of...) |
 | `content_type` | VARCHAR(50) | Type of content (wake_up, stretch, challenge, etc.) |
+| `content` | TEXT | Raw content text before script generation |
 | `script` | TEXT | The GPT-4o generated text content |
 | `audio_url` | VARCHAR(500) | ElevenLabs generated audio file location |
 | `status` | VARCHAR(50) | Current state in the generation pipeline |
@@ -62,9 +63,9 @@
 | `audio_generated_at` | TIMESTAMP WITH TIME ZONE | When ElevenLabs finished creating the audio |
 
 **Content Types**:
+
+**MVP Content Types:**
 - `wake_up` - General wake-up messages and greetings
-- `stretch` - Morning stretch routines and instructions
-- `challenge` - Brain teasers, puzzles, and mental challenges
 - `weather` - Weather information and forecasts
 - `encouragement` - Motivational and inspirational content
 - `headlines` - News headlines and summaries
@@ -73,6 +74,10 @@
 - `user_intro` - Personalized opening messages
 - `user_outro` - Personalized closing messages
 - `user_reminders` - Personal reminders and tasks
+
+**Future Content Types (Not in MVP):**
+- `stretch` - Morning stretch routines and instructions
+- `challenge` - Brain teasers, puzzles, and mental challenges
 
 **Status Values**:
 - `pending` - Record created, waiting to start generation
@@ -116,13 +121,14 @@
 - Service role can read/write all content for background jobs
 
 ### **3. user_preferences Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `user_id` | UUID | Primary key, references users table |
 | `timezone` | VARCHAR(50) | User's timezone for scheduling and timing |
 | `location_zip` | VARCHAR(10) | User's zipcode for location-based content matching |
+| `voice` | VARCHAR(100) | ElevenLabs voice identifier for user preference |
 | `created_at` | TIMESTAMP WITH TIME ZONE | When the record was created |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification to the record |
 
@@ -141,7 +147,7 @@
 - Service role can read/write all preferences for background jobs
 
 ### **4. logs Table**
-**Status**: ✅ Deployed to develop branch
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -190,7 +196,7 @@
 - Users cannot write logs (insert/update/delete) - only system can
 
 ### **5. user_weather_data Table**
-**Status**: ✅ Deployed
+**Status**: ✅ Deployed to main branch (production)
 
 | Column | Type | Description |
 |--------|------|-------------|
