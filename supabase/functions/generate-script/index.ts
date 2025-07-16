@@ -784,13 +784,16 @@ serve(async (req) => {
 
     if (isCronJob) {
       console.log('🕐 Cron job detected - starting async processing')
-      
-      // Start async processing without waiting
-      processBatchAsync(supabaseClient).catch(error => {
-        console.error('🔄 Async processing error:', error)
-      })
-
-      // Return immediate success response
+      try {
+        // Start async processing without waiting
+        processBatchAsync(supabaseClient).catch(error => {
+          console.error('🔄 Async processing error:', error)
+        })
+      } catch (asyncError) {
+        // Log but do not fail the HTTP response
+        console.error('🔄 Error launching async batch:', asyncError)
+      }
+      // Return immediate success response (always 200)
       return new Response(
         JSON.stringify({
           success: true,

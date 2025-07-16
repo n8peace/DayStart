@@ -70,7 +70,7 @@ export const DEFAULT_VOICE = 'voice_3'
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'
 export const ELEVEN_LABS_TIMEOUT_MS = 60000 // 60 seconds for audio generation
 export const ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT = 5000 // Eleven Multilingual v2 character limit
-export const DEFAULT_OUTPUT_FORMAT = 'mp3' // Default audio format
+export const DEFAULT_OUTPUT_FORMAT = 'aac' // Default audio format
 
 // Voice-specific text preprocessing
 export function preprocessTextForVoice(text: string, voice: string): string {

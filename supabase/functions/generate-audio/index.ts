@@ -95,13 +95,13 @@ async function uploadAudioToStorage(
   try {
     // Create a unique filename with content type folder structure
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const filename = `${contentType}/${contentBlockId}_${voice}_${timestamp}.mp3`
+    const filename = `${contentType}/${contentBlockId}_${voice}_${timestamp}.aac`
     
     // Upload to Supabase Storage
     const { data, error } = await supabaseClient.storage
       .from('audio-files')
       .upload(filename, audioBuffer, {
-        contentType: 'audio/mpeg',
+        contentType: 'audio/aac',
         cacheControl: '3600', // Cache for 1 hour
         upsert: false // Don't overwrite existing files
       })
@@ -150,7 +150,7 @@ async function generateAudioForContentBlock(
       const response = await fetch(`${ELEVEN_LABS_API_BASE}/text-to-speech/${voiceConfig.voiceId}`, {
         method: 'POST',
         headers: {
-          'Accept': 'audio/mpeg',
+          'Accept': 'audio/aac',
           'Content-Type': 'application/json',
           'xi-api-key': elevenLabsApiKey,
         },
@@ -254,6 +254,7 @@ async function processContentBlock(
       })
       .eq('id', contentBlock.id)
       .eq('status', 'script_generated') // Optimistic locking
+      .eq('updated_at', currentBlock.updated_at)
 
     if (updateError) {
       throw new Error(`Failed to update content block status: ${updateError.message}`)
@@ -345,7 +346,7 @@ async function processBatch(supabaseClient: any): Promise<{
       .select('*')
       .eq('status', 'script_generated')
       .order('content_priority', { ascending: true })
-      .order('created_at', { ascending: true })
+      .order('script_generated_at', { ascending: true })
       .limit(BATCH_SIZE)
 
     if (fetchError) {
@@ -431,7 +432,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
       .select('*')
       .eq('status', 'script_generated')
       .order('content_priority', { ascending: true })
-      .order('created_at', { ascending: true })
+      .order('script_generated_at', { ascending: true })
       .limit(BATCH_SIZE)
 
     if (fetchError) {
@@ -459,22 +460,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
     // Process each content block asynchronously
     const processingPromises = contentBlocks.map(async (contentBlock) => {
       try {
-        // Mark as processing to prevent duplicate processing
-        const { error: updateError } = await supabaseClient
-          .from('content_blocks')
-          .update({ 
-            status: 'audio_generating', 
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', contentBlock.id)
-          .eq('status', 'script_generated') // Optimistic locking
-
-        if (updateError) {
-          console.error(`Failed to mark ${contentBlock.id} as processing:`, updateError)
-          return
-        }
-
-        // Process the content block
+        // Process the content block (processContentBlock handles status transitions)
         const result = await processContentBlock(supabaseClient, contentBlock)
         
         if (!result.success) {

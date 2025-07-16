@@ -62,13 +62,15 @@ The bucket includes:
 - Authenticated user upload permissions
 - Service role full access for background jobs
 - 10MB file size limit
-- Support for audio/mpeg, audio/mp3, audio/wav, audio/ogg formats
+- Support for audio/aac, audio/mpeg, audio/mp3, audio/wav, audio/ogg formats
 
 ## Content Block Status Flow
 
-1. `script_generated` → `audio_generating` (when processing starts)
+1. `script_generated` → `audio_generating` (when processing starts, with optimistic locking)
 2. `audio_generating` → `ready` (on successful audio generation)
 3. `audio_generating` → `audio_failed` (on failure)
+
+**Note**: The function uses optimistic locking to prevent race conditions and duplicate processing. Only one process can claim a content block for audio generation at a time.
 
 ## Audio Storage
 
@@ -87,7 +89,7 @@ audio-files/
 └── user_reminders/
 ```
 
-Each file follows the naming pattern: `{content_type}/{content_block_id}_{voice}_{timestamp}.mp3`
+Each file follows the naming pattern: `{content_type}/{content_block_id}_{voice}_{timestamp}.aac`
 
 The `audio_url` field contains the public URL to the stored audio file, which can be directly accessed by the mobile app.
 
