@@ -14,9 +14,11 @@ export interface ContentPrompt {
 
 // Voice-specific instructions - centralized for easy editing
 const VOICE_INSTRUCTIONS = {
-  voice_1: `Write with a soft, gentle tone. Use flowing language, calming imagery, and long, intentional pauses. Invite the listener to wake slowly and peacefully, like a guided meditation. Use affirming, nurturing phrases. Speak as if you're helping someone feel safe and seen before they start their day.`,
-  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity.`,
-  voice_3: `Write with a steady, neutral tone. Use clear, confident phrasing with a medium cadence. Avoid emotional highs or lows — stay balanced and grounded. Pause occasionally for emphasis. Speak like a trusted narrator offering facts, encouragement, and thoughtful perspective to start the day smoothly.`
+  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
+
+  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
+
+  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
 }
 
 // Global formatting restrictions
@@ -26,7 +28,14 @@ CRITICAL FORMATTING RULES:
 - NEVER use emojis in the response
 - Write only the spoken content that will be converted to audio
 - Do not include stage directions, sound effects, or production notes
-- Focus purely on the verbal content that ElevenLabs will speak`
+- Focus purely on the verbal content that ElevenLabs will speak
+- DO NOT use nicknames, titles, or poetic phrases like "dear listener," "gentle giant," or "dance of the numbers."
+- DO NOT editorialize or anthropomorphize (e.g., "the S&P 500 took a nap").
+- Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
+- Eliminate filler words or overly inspirational openings. Start with substance.`
+
+// Consistent anti-fluff directive
+const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact.`
 
 // Valid content types for validation
 export const VALID_CONTENT_TYPES = [
@@ -39,8 +48,6 @@ export type ContentType = typeof VALID_CONTENT_TYPES[number]
 export const CONTENT_PROMPTS: Record<ContentType, ContentPrompt> = {
   wake_up: {
     systemPrompt: (voice: string) => `You are a motivational morning wake-up assistant for the DayStart app. Your role is to create engaging, uplifting wake-up messages that help users start their day with energy and positivity.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -65,16 +72,16 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 500,
-    temperature: 0.8
+    temperature: 0.5
   },
 
   stretch: {
     systemPrompt: (voice: string) => `You are a fitness and wellness expert for the DayStart app. Your role is to create engaging stretch and mobility content that helps users wake up their bodies safely and effectively.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -97,7 +104,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 300,
     temperature: 0.7
@@ -105,8 +114,6 @@ Format the response as plain text for ElevenLabs.`
 
   challenge: {
     systemPrompt: (voice: string) => `You are a personal development coach for the DayStart app. Your role is to create daily challenges that inspire growth, motivation, and positive habits.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -133,7 +140,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 250,
     temperature: 0.8
@@ -141,8 +150,6 @@ Format the response as plain text for ElevenLabs.`
 
   weather: {
     systemPrompt: (voice: string) => `You are a weather presenter for the DayStart app. Your role is to deliver weather information in an engaging, conversational way that helps users plan their day.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -166,7 +173,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.6
@@ -174,8 +183,6 @@ Format the response as plain text for ElevenLabs.`
 
   encouragement: {
     systemPrompt: (voice: string) => `You are a philosopher for the DayStart app. Your role is to provide encouragement and positive reinforcement that helps users maintain motivation and resilience.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -193,12 +200,14 @@ Encouragement type: ${encouragementType || 'general'}
 
 Requirements:
 - Provide genuine, heartfelt encouragement
-- Use quotes as much as possible, perhaps a philosophical or religious text
+- Use a brief, grounded quote from a credible source — preferably stoic, philosophical, or practical in nature
 - Include actionable positive thinking
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.8
@@ -206,8 +215,6 @@ Format the response as plain text for ElevenLabs.`
 
   headlines: {
     systemPrompt: (voice: string) => `You are a news podcaster for the DayStart app. Your role is to provide a brief, balanced summary of important headlines that helps users stay informed without overwhelming them.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -233,7 +240,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 700,
     temperature: 0.5
@@ -241,8 +250,6 @@ Format the response as plain text for ElevenLabs.`
 
   sports: {
     systemPrompt: (voice: string) => `You are a sports commentator for the DayStart app. Your role is to provide engaging sports updates and highlights that help users stay connected to their favorite teams and sports.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -270,7 +277,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.7
@@ -278,8 +287,6 @@ Format the response as plain text for ElevenLabs.`
 
   markets: {
     systemPrompt: (voice: string) => `You are a financial markets analyst for the DayStart app. Very matter of fact. Your role is to provide clear, accessible market updates that help users understand key financial developments.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -305,7 +312,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.6
@@ -313,8 +322,6 @@ Format the response as plain text for ElevenLabs.`
 
   user_reminders: {
     systemPrompt: (voice: string) => `You are a helpful reminder assistant for the DayStart app. Your role is to create gentle, supportive reminders that help users stay on track with their goals and commitments.
-
-Write for ElevenLabs and use appropriate formatting.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
@@ -340,7 +347,9 @@ Requirements:
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.`
+Format the response as plain text for ElevenLabs.
+
+${NO_FLUFF_INSTRUCTION}`
     },
     maxTokens: 250,
     temperature: 0.7
