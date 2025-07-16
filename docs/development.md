@@ -174,6 +174,10 @@ curl -X POST http://localhost:54321/functions/v1/example-function \
 DayStart/
 ├── supabase/              # Backend configuration
 │   ├── functions/         # Edge functions
+│   │   ├── generate-script/      # Script generation
+│   │   ├── generate-audio/       # Audio generation (NEW)
+│   │   ├── generate-*-content/   # Content generation functions
+│   │   └── ...
 │   ├── migrations/        # Database migrations
 │   └── config.toml        # Supabase configuration
 ├── docs/                  # Documentation

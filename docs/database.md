@@ -15,8 +15,9 @@
 - ✅ `user_preferences` - Deployed to main branch (production)
 - ✅ `logs` - Deployed to main branch (production)
 - ✅ `user_weather_data` - Deployed to main branch (production)
+- ✅ `audio-files` storage bucket - Ready for deployment to develop branch
 
-**Note**: All tables are now deployed to both `develop` and `main` branches. Production environment is live and ready for iOS app development.
+**Note**: All tables and content generation functions are deployed to main branch (production). The generate-audio function and storage bucket are ready for deployment to develop branch.
 
 ## 📋 Table Definitions
 
@@ -48,7 +49,7 @@
 | `content_type` | VARCHAR(50) | Type of content (wake_up, stretch, challenge, etc.) |
 | `content` | TEXT | Raw content text before script generation |
 | `script` | TEXT | The GPT-4o generated text content |
-| `audio_url` | VARCHAR(500) | ElevenLabs generated audio file location |
+| `audio_url` | VARCHAR(500) | ElevenLabs generated audio file public URL (Supabase Storage) |
 | `status` | VARCHAR(50) | Current state in the generation pipeline |
 | `voice` | VARCHAR(100) | ElevenLabs voice identifier used |
 | `duration_seconds` | INTEGER | Duration of the generated audio in seconds |
@@ -197,6 +198,40 @@
 
 ### **5. user_weather_data Table**
 **Status**: ✅ Deployed to main branch (production)
+
+### **6. audio-files Storage Bucket**
+**Status**: ✅ Ready for deployment to develop branch
+
+**Purpose**: Stores all generated audio files organized by content type
+
+**Structure**:
+```
+audio-files/
+├── wake_up/
+├── stretch/
+├── challenge/
+├── weather/
+├── encouragement/
+├── headlines/
+├── sports/
+├── markets/
+└── user_reminders/
+```
+
+**File Naming**: `{content_type}/{content_block_id}_{voice}_{timestamp}.mp3`
+
+**Configuration**:
+- Public read access for all audio files
+- Authenticated user upload permissions
+- Service role full access for background jobs
+- 10MB file size limit
+- Supported formats: audio/mpeg, audio/mp3, audio/wav, audio/ogg
+
+**RLS Policies**:
+- Public read access to all audio files
+- Authenticated users can upload audio files
+- Service role has full access for background jobs
+- Users can update/delete their own audio files
 
 | Column | Type | Description |
 |--------|------|-------------|
