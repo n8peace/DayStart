@@ -43,9 +43,4 @@ CREATE POLICY "Users can delete their own audio files" ON storage.objects
   FOR DELETE USING (
     bucket_id = 'audio-files' 
     AND auth.role() = 'authenticated'
-  );
-
--- Add comments for documentation
-COMMENT ON TABLE storage.objects IS 'Audio files stored by content type for DayStart application';
-COMMENT ON COLUMN storage.objects.name IS 'File path including content type folder structure';
-COMMENT ON COLUMN storage.objects.bucket_id IS 'Always audio-files for DayStart audio content'; 
+  ); 
