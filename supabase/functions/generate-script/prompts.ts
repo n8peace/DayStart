@@ -61,7 +61,7 @@ ${content}
 
 Time available: 90 seconds
 
-Holiday information: ${holidayData ? JSON.stringify(holidayData) : 'No special holidays today'}
+${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
 - Start with "It's [day of the week], [date]."
