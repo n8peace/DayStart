@@ -15,6 +15,7 @@ export interface VoiceConfig {
 export interface TTSRequest {
   text: string
   model_id: string
+  output_format?: string
   voice_settings: {
     stability: number
     similarity_boost: number
@@ -24,6 +25,11 @@ export interface TTSRequest {
 }
 
 // ElevenLabs Voice Mappings
+// Using Eleven v3 model: Most emotionally rich, expressive speech synthesis
+// - 70+ languages supported
+// - 10,000 character limit
+// - Dramatic delivery and performance
+// - Support for natural multi-speaker dialogue
 export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
   voice_1: {
     voiceId: 'pNInz6obpgDQGcFmaJgB', // Grace - female meditative wake up voice
@@ -63,10 +69,18 @@ export const DEFAULT_VOICE = 'voice_3'
 // ElevenLabs API Configuration
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'
 export const ELEVEN_LABS_TIMEOUT_MS = 60000 // 60 seconds for audio generation
+export const ELEVEN_V3_CHAR_LIMIT = 10000 // Eleven v3 character limit
+export const DEFAULT_OUTPUT_FORMAT = 'mp3' // Default audio format
 
 // Voice-specific text preprocessing
 export function preprocessTextForVoice(text: string, voice: string): string {
   const voiceConfig = VOICE_CONFIGS[voice] || VOICE_CONFIGS[DEFAULT_VOICE]
+  
+  // Check character limit for Eleven v3
+  if (text.length > ELEVEN_V3_CHAR_LIMIT) {
+    console.warn(`Text length (${text.length}) exceeds Eleven v3 limit (${ELEVEN_V3_CHAR_LIMIT}). Truncating.`)
+    text = text.substring(0, ELEVEN_V3_CHAR_LIMIT)
+  }
   
   // Remove any unsupported SSML tags that might have been added
   let processedText = text
@@ -117,6 +131,7 @@ export function buildTTSRequest(text: string, voice: string): TTSRequest {
   return {
     text: processedText,
     model_id: voiceConfig.modelId,
+    output_format: DEFAULT_OUTPUT_FORMAT,
     voice_settings: {
       stability: voiceConfig.stability,
       similarity_boost: voiceConfig.similarityBoost,
