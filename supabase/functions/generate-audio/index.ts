@@ -384,37 +384,71 @@ async function processBatch(supabaseClient: any): Promise<{
 }
 
 serve(async (req) => {
+  console.log('🔍 generate-audio function called')
+  console.log('🔍 Request method:', req.method)
+  console.log('🔍 Request URL:', req.url)
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('🔍 Handling CORS preflight')
     return new Response('ok', { headers: corsHeaders })
   }
 
   // Handle health check requests
   const url = new URL(req.url)
+  console.log('🔍 URL pathname:', url.pathname)
+  
   if (url.pathname === '/health' || req.method === 'GET') {
-    return new Response(
-      JSON.stringify({
+    console.log('🔍 Handling health check request')
+    try {
+      const response = {
         status: 'healthy',
         function: 'generate-audio',
         timestamp: new Date().toISOString()
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
       }
-    )
+      console.log('🔍 Health check response:', response)
+      return new Response(
+        JSON.stringify(response),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    } catch (healthError) {
+      console.error('🔍 Health check error:', healthError)
+      return new Response(
+        JSON.stringify({
+          status: 'error',
+          function: 'generate-audio',
+          error: healthError.message,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
   }
 
   try {
+    console.log('🔍 Starting main function logic')
+    
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    console.log('🔍 Supabase URL exists:', !!supabaseUrl)
+    console.log('🔍 Supabase Service Key exists:', !!supabaseServiceKey)
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('🔍 Missing Supabase configuration')
       throw new Error('Missing Supabase configuration')
     }
 
+    console.log('🔍 Creating Supabase client')
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+    console.log('🔍 Supabase client created successfully')
 
     // Process batch
     const result = await processBatch(supabaseClient)
@@ -445,12 +479,17 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in generate-audio function:', error)
+    console.error('🔍 Error in generate-audio function:', error)
+    console.error('🔍 Error stack:', error.stack)
+    console.error('🔍 Error name:', error.name)
+    console.error('🔍 Error message:', error.message)
 
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        errorType: error.name,
+        timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
