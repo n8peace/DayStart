@@ -310,6 +310,7 @@ async function processContentBlock(
     errors.push(`Content block ${contentBlock.id}: ${error.message}`)
 
     // Update status to audio_failed to prevent stuck content blocks
+    // Remove status condition to ensure we always mark as failed regardless of current state
     try {
       await supabaseClient
         .from('content_blocks')
@@ -323,7 +324,7 @@ async function processContentBlock(
           }
         })
         .eq('id', contentBlock.id)
-        .eq('status', ContentBlockStatus.AUDIO_GENERATING) // Only update if still in audio_generating
+        // Removed status condition to ensure we always update to failed state
     } catch (updateError) {
       console.error(`Failed to update status to audio_failed for ${contentBlock.id}:`, updateError)
       // Continue with logging even if status update fails
