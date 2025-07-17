@@ -309,6 +309,26 @@ async function processContentBlock(
     console.error(`Error processing content block ${contentBlock.id}:`, error)
     errors.push(`Content block ${contentBlock.id}: ${error.message}`)
 
+    // Update status to audio_failed to prevent stuck content blocks
+    try {
+      await supabaseClient
+        .from('content_blocks')
+        .update({
+          status: ContentBlockStatus.AUDIO_FAILED,
+          updated_at: new Date().toISOString(),
+          parameters: {
+            ...contentBlock.parameters,
+            audio_generated: false,
+            audio_error: error.message
+          }
+        })
+        .eq('id', contentBlock.id)
+        .eq('status', ContentBlockStatus.AUDIO_GENERATING) // Only update if still in audio_generating
+    } catch (updateError) {
+      console.error(`Failed to update status to audio_failed for ${contentBlock.id}:`, updateError)
+      // Continue with logging even if status update fails
+    }
+
     // Log processing error
     await safeLogError(supabaseClient, {
       event_type: 'audio_processing_failed',
