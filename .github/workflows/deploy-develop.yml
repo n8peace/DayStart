@@ -188,12 +188,7 @@ jobs:
               echo "📄 Function files:"
               ls -la "$func_dir"
               
-              # Force delete and redeploy to clear any caching
-              echo "🗑️ Force deleting function first..."
-              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
-              
-              # Deploy with enhanced error handling
-              echo "🚀 Deploying fresh copy of function: $func_name"
+              # Simple deploy (update or create function)
               if supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
                 echo "✅ Successfully deployed function: $func_name"
               else
