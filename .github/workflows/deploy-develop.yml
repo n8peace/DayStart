@@ -30,7 +30,7 @@ jobs:
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
       with:
-        version: '1.145.4'  # Pin to specific version for stability
+        version: latest
         
     - name: Validate environment variables
       run: |
@@ -113,66 +113,15 @@ jobs:
         
         echo "Attempting database migration deployment..."
         
-        # Test database connectivity first using a simple query
-        echo "🔍 Testing database connectivity before migration..."
-        echo "🔍 Verifying project link..."
-        
-        # Check if project is properly linked
-        echo "🔍 Looking for project: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
-        echo "🔍 Available projects:"
-        supabase projects list
-        
-        # Check if the target project exists in the list
-        if ! supabase projects list | grep -q "${{ secrets.SUPABASE_DEVELOP_PROJECT }}"; then
-          echo "❌ Project ${{ secrets.SUPABASE_DEVELOP_PROJECT }} not found in linked projects"
-          echo "🔍 Available project reference IDs:"
-          supabase projects list | grep -E '^[[:space:]]*[a-zA-Z0-9]+' | awk '{print $3}'
-          echo ""
-          echo "🔧 Troubleshooting steps:"
-          echo "   1. Verify SUPABASE_ACCESS_TOKEN has access to project epqiarnkhzabggxiltci"
-          echo "   2. Check if project epqiarnkhzabggxiltci exists and is accessible"
-          echo "   3. Try linking directly: supabase link --project-ref epqiarnkhzabggxiltci"
-          echo "   4. Verify you're using the correct Supabase account"
-          echo ""
-          echo "🔍 Testing direct project link..."
-          if supabase link --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}; then
-            echo "✅ Direct project link successful"
-          else
-            echo "❌ Direct project link failed"
-            exit 1
-          fi
+        # Simplified migration deployment with basic error handling
+        if supabase db push; then
+          echo "✅ Database migration successful"
+        else
+          echo "❌ Database migration failed"
+          echo "🔍 Checking migration status..."
+          supabase migration list || echo "Could not list migrations"
+          exit 1
         fi
-        
-        echo "✅ Project is properly linked"
-        
-        # Attempt migration with retry logic
-        echo "🔄 Attempting database migration..."
-        max_retries=3
-        retry_count=0
-        
-        while [ $retry_count -lt $max_retries ]; do
-          echo "🔄 Migration attempt $((retry_count + 1)) of $max_retries..."
-          if supabase db push --debug; then
-            echo "✅ Database migration successful"
-            break
-          else
-            retry_count=$((retry_count + 1))
-            if [ $retry_count -lt $max_retries ]; then
-              echo "⚠️ Migration failed, retrying in 10 seconds..."
-              sleep 10
-            else
-              echo "❌ Database migration failed after $max_retries attempts"
-              echo "🔍 Checking migration status..."
-              supabase migration list || echo "Could not list migrations"
-              echo "🔍 Checking for network connectivity issues..."
-              echo "🔍 This may be due to:"
-              echo "   - Network connectivity issues"
-              echo "   - Database credentials"
-              echo "   - Database server status"
-              exit 1
-            fi
-          fi
-        done
         
         echo "✅ Database migrations deployed successfully"
         
@@ -239,9 +188,13 @@ jobs:
               echo "📄 Function files:"
               ls -la "$func_dir"
               
-              # Deploy with enhanced error handling and no force deletion
-              echo "🚀 Deploying function: $func_name"
-              if supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --no-verify-jwt --debug; then
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
+              
+              # Deploy with enhanced error handling
+              echo "🚀 Deploying fresh copy of function: $func_name"
+              if supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
                 echo "✅ Successfully deployed function: $func_name"
               else
                 echo "❌ Failed to deploy function: $func_name"
@@ -291,7 +244,7 @@ jobs:
         
         # Check if any functions exist before testing them
         if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
-          echo "Testing edge functions with detailed logging..."
+          echo "Testing edge functions in parallel..."
           
           # Create a temporary file to store function names
           temp_file=$(mktemp)
@@ -308,60 +261,24 @@ jobs:
             fi
           done
           
-          echo "📋 Functions to test:"
-          cat "$temp_file"
-          
-          # Function to test a single function with detailed logging
+          # Function to test a single function
           test_function() {
             local func_name=$1
-            echo "🔍 Testing $func_name function..."
+            echo "Testing $func_name function..."
             
-            # Test with detailed response logging
-            echo "  📡 Making request to: ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name"
+            # Add timeout to curl to prevent hanging
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
             
-            # Capture full response with headers and body
-            full_response=$(timeout 30 curl -s -w "\n---HTTP_CODE---%{http_code}\n---RESPONSE_TIME---%{time_total}s" \
-              -X GET "${{ secrets.SUPABASE_URL }}/functions/v1/$func_name" \
-              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-              -H "Content-Type: application/json" \
-              -v 2>&1)
-            
-            # Extract HTTP code using awk to get value after marker
-            http_code=$(echo "$full_response" | awk -F'---HTTP_CODE---' '{if (NF>1) print $2}' | awk -F'---RESPONSE_TIME---' '{print $1}' | tr -d '\n ')
-            
-            # Extract response time using awk to get value after marker
-            response_time=$(echo "$full_response" | awk -F'---RESPONSE_TIME---' '{if (NF>1) print $2}' | tr -d 's\n ')
-            
-            # Extract response body (everything before the HTTP_CODE marker)
-            response_body=$(echo "$full_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
-            
-            echo "  ⏱️ Response time: ${response_time}s"
-            echo "  📊 HTTP Status: $http_code"
-            
-            # Log response body for debugging (truncated if too long)
-            if [ ${#response_body} -gt 500 ]; then
-              echo "  📄 Response body (truncated): ${response_body:0:500}..."
-            else
-              echo "  📄 Response body: $response_body"
-            fi
-            
-            # Determine if the function is healthy
+            http_code=$(echo "$response" | tail -n1)
             if [ "$http_code" = "200" ]; then
-              echo "  ✅ $func_name function is healthy"
+              echo "✅ $func_name function is healthy"
               return 0
             elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
-              echo "  ✅ $func_name function is healthy (no weather data available - expected)"
+              echo "✅ $func_name function is healthy (no weather data available - expected)"
               return 0
-            elif [ "$http_code" = "503" ]; then
-              echo "  ⚠️ $func_name function returned 503 (Service Unavailable)"
-              echo "  🔍 This usually means internal health checks failed"
-              return 1
-            elif [ "$http_code" = "500" ]; then
-              echo "  ❌ $func_name function crashed (HTTP 500)"
-              echo "  🔍 Check Supabase logs for detailed error"
-              return 1
             else
-              echo "  ❌ $func_name function health check failed (HTTP $http_code)"
+              echo "❌ $func_name function health check failed (HTTP $http_code)"
               return 1
             fi
           }
@@ -371,32 +288,34 @@ jobs:
           export SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
           export SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           
-          # Run health checks sequentially for better logging
-          echo "🚀 Starting function health checks..."
-          failed_functions=()
-          
-          while IFS= read -r func_name; do
-            if ! test_function "$func_name"; then
-              failed_functions+=("$func_name")
-            fi
-            echo ""  # Add spacing between function tests
-          done < "$temp_file"
+          # Run health checks in parallel with a maximum of 5 concurrent jobs
+          if command -v parallel >/dev/null 2>&1; then
+            # Use GNU parallel if available
+            parallel -j 5 test_function ::: $(cat "$temp_file")
+            parallel_status=$?
+          else
+            # Fallback to background jobs with wait
+            pids=()
+            while IFS= read -r func_name; do
+              test_function "$func_name" &
+              pids+=($!)
+            done < "$temp_file"
+            
+            # Wait for all background jobs to complete
+            parallel_status=0
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then
+                parallel_status=1
+              fi
+            done
+          fi
           
           # Clean up
           rm -f "$temp_file"
           
-          # Report results
-          if [ ${#failed_functions[@]} -eq 0 ]; then
-            echo "✅ All function health checks passed"
-          else
-            echo "❌ Health check failures detected:"
-            printf '  - %s\n' "${failed_functions[@]}"
-            echo ""
-            echo "🔧 Debugging steps:"
-            echo "  1. Check Supabase dashboard → Edge Functions → [Function Name] → Logs"
-            echo "  2. Verify environment variables are set correctly"
-            echo "  3. Check if database migrations have been applied"
-            echo "  4. Review function code for unhandled errors"
+          # Exit with the status from parallel execution
+          if [ $parallel_status -ne 0 ]; then
+            echo "❌ One or more health checks failed"
             exit 1
           fi
           
@@ -410,17 +329,13 @@ jobs:
         echo "🗄️ Testing database connectivity..."
         echo "  📡 Making request to: ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count"
         
-        db_response=$(curl -s -w "\n---HTTP_CODE---%{http_code}\n---RESPONSE_TIME---%{time_total}s" \
-          -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count" \
+        db_response=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json" \
-          -v 2>&1)
+          -H "Content-Type: application/json")
         
-        db_http_code=$(echo "$db_response" | grep -- "---HTTP_CODE---" | cut -d'-' -f4)
-        db_response_time=$(echo "$db_response" | grep -- "---RESPONSE_TIME---" | cut -d'-' -f4)
-        db_response_body=$(echo "$db_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
+        db_http_code=$(echo "$db_response" | tail -n1)
+        db_response_body=$(echo "$db_response" | head -n -1)
         
-        echo "  ⏱️ Response time: ${db_response_time}s"
         echo "  📊 HTTP Status: $db_http_code"
         echo "  📄 Response body: $db_response_body"
         
@@ -469,22 +384,6 @@ jobs:
         else
           echo "⚠️ No migrations found"
         fi
-        
-        # Check database schema
-        echo ""
-        echo "📋 Checking database schema..."
-        echo "Testing content_blocks table status constraint..."
-        
-        # Test if the status constraint allows content_ready and content_failed
-        test_query="SELECT status FROM content_blocks WHERE status IN ('content_ready', 'content_failed') LIMIT 1;"
-        
-        # This will fail if the constraint doesn't allow these statuses
-        schema_test=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/exec_sql" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json" \
-          -d "{\"query\": \"$test_query\"}" 2>/dev/null || echo "Schema test failed")
-        
-        echo "Schema constraint test result: $schema_test"
         
         echo "✅ Deployment verification complete"
         
