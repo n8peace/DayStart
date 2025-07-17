@@ -242,7 +242,7 @@ async function checkExpiredContent(supabaseClient: any): Promise<HealthCheckResu
       .from('content_blocks')
       .select('*')
       .lt('expiration_date', new Date().toISOString().split('T')[0])
-      .not('status', 'expired')
+      .not('status', 'eq', 'expired')
 
     if (error) {
       return {
