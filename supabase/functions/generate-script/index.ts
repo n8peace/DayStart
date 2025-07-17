@@ -724,208 +724,54 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const utcDateStr = utcDate()
-    const expirationDate = new Date(utcDateStr)
-    expirationDate.setHours(expirationDate.getHours() + 72)
-    const expirationDateStr = expirationDate.toISOString().split('T')[0]
-
-    // Fetch content blocks that need script generation
-    const { data: contentBlocks, error: fetchError } = await supabaseClient
-      .from('content_blocks')
-      .select('*')
-      .eq('date', utcDateStr)
-      .eq('status', ContentBlockStatus.CONTENT_READY)
-      .not('script', 'is', null)
-      .order('content_priority', { ascending: true })
-
-    if (fetchError) {
-      throw new Error(`Failed to fetch content blocks: ${fetchError.message}`)
-    }
-
-    if (!contentBlocks || contentBlocks.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No content blocks need script generation',
-          processed_count: 0
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200
-        }
-      )
-    }
-
-    const results = []
-    const errors = []
-    // Process each content block
-    for (const contentBlock of contentBlocks) {
-      try {
-        validateObjectShape(contentBlock, ['id', 'content_type', 'content', 'status'])
-
-        // Generate script using GPT-4
-        let scriptContent = null
-        let gptError = null
-        try {
-          const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
-          if (openaiApiKey) {
-                         const prompt = generateFullPrompt(contentBlock.content_type, contentBlock.content, contentBlock.parameters || {})
-            const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                model: 'gpt-4',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'You are a professional voice script writer who creates natural, conversational scripts for morning briefings.'
-                  },
-                  {
-                    role: 'user',
-                    content: prompt
-                  }
-                ],
-                max_tokens: 300,
-                temperature: 0.7
-              }),
-              signal: AbortSignal.timeout(15 * 1000)
-            })
-
-            if (gptResponse.ok) {
-              const gptData = await gptResponse.json()
-              if (gptData.choices && gptData.choices[0]?.message?.content) {
-                scriptContent = gptData.choices[0].message.content.trim()
-              } else {
-                gptError = 'Invalid GPT response format'
-              }
-            } else {
-              gptError = `OpenAI API failed: ${gptResponse.status}`
-            }
-          } else {
-            gptError = 'OpenAI API key not configured'
-          }
-        } catch (error) {
-          if (error.name === TimeoutError) {
-            gptError = 'OpenAI API request timed out'
-          } else {
-            gptError = `OpenAI API error: ${error.message}`
-          }
-        }
-
-        // Update content block with script
-        const { data: updatedBlock, error: updateError } = await supabaseClient
-          .from('content_blocks')
-          .update({
-            script: scriptContent || contentBlock.content, // Fallback to original content
-            status: gptError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.SCRIPT_GENERATED,
-            parameters: {
-              ...contentBlock.parameters,
-              script_generated: !!scriptContent,
-              gpt_error: gptError,
-              fallback_used: !scriptContent
-            }
-          })
-          .eq('id', contentBlock.id)
-          .select()
-          .single()
-
-        if (updateError) {
-          throw updateError
-        }
-        validateObjectShape(updatedBlock, ['id', 'script', 'status'])
-
-        results.push(updatedBlock)
-
-        // Log successful script generation
-        try {
-          await supabaseClient
-            .from('logs')
-            .insert({
-              event_type: 'script_generated',
-              status: 'success',
-              message: `Script generated for ${contentBlock.content_type}`,
-              content_block_id: contentBlock.id,
-              metadata: { 
-                content_type: contentBlock.content_type, 
-                date: utcDateStr,
-                gpt_error: gptError
-              }
-            })
-        } catch (logError) {
-          safeLogError('Failed to log script generation:', logError)
-        }
-
-      } catch (error) {
-        console.error(`Error processing content block ${contentBlock.id}:`, error)
-        errors.push(`Content block ${contentBlock.id}: ${error.message}`)
-
-        // Log individual processing error
-        try {
-          await supabaseClient
-            .from('logs')
-            .insert({
-              event_type: 'script_generation_failed',
-              status: 'error',
-              message: `Script generation failed for content block ${contentBlock.id}: ${error.message}`,
-              content_block_id: contentBlock.id,
-              metadata: { 
-                content_type: contentBlock.content_type,
-                error: error.toString() 
-              }
-            })
-        } catch (logError) {
-          safeLogError('Failed to log script generation error:', logError)
-        }
-      }
-    }
-
+    // Use the modern processBatch function
+    const result = await processBatch(supabaseClient)
+    
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        content_blocks: results,
-        total_processed: contentBlocks.length,
-        successful: results.length,
-        errors: errors
+      JSON.stringify({
+        success: result.success,
+        message: result.success ? 'Script generation batch completed' : 'Script generation batch failed',
+        total_processed: result.processedCount,
+        total_errors: result.totalErrors,
+        errors: result.errors
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: result.success ? 200 : 500
       }
     )
 
   } catch (error) {
-    console.error('Error generating scripts:', error)
-
-    // Log error
+    console.error('Error in generate-script function:', error)
+    
+    // Log error with safe error handling
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
-      
-      await supabaseClient
-        .from('logs')
-        .insert({
-          event_type: 'script_generation_failed',
-          status: 'error',
-          message: `Script generation failed: ${error.message}`,
-          metadata: { error: error.toString() }
-        })
+      await safeLogError(supabaseClient, {
+        event_type: 'script_generation_batch_failed',
+        status: 'error',
+        message: `Script generation batch failed: ${error.message}`,
+        metadata: {
+          error: error.toString(),
+          batch_size: BATCH_SIZE
+        }
+      })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500      }
+        status: 500
+      }
     )
   }
 }) 
