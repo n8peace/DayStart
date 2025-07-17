@@ -74,6 +74,24 @@ jobs:
         
         echo "✅ All required environment variables are set"
         
+    - name: Verify Supabase access and list projects
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        echo "🔍 Verifying Supabase access..."
+        echo "🔍 Testing access token..."
+        
+        # Test if we can list projects
+        if supabase projects list; then
+          echo "✅ Access token is valid"
+          echo "📋 All accessible projects:"
+          supabase projects list
+        else
+          echo "❌ Access token is invalid or expired"
+          echo "🔧 Please check SUPABASE_ACCESS_TOKEN secret"
+          exit 1
+        fi
+        
     - name: Link to development project
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -110,11 +128,19 @@ jobs:
           echo "🔍 Available project reference IDs:"
           supabase projects list | grep -E '^[[:space:]]*[a-zA-Z0-9]+' | awk '{print $3}'
           echo ""
-          echo "🔧 Please verify:"
-          echo "   1. SUPABASE_DEVELOP_PROJECT secret is set correctly"
-          echo "   2. You're using the DayStart project reference ID: yqbrfznixefqqhnvingu"
-          echo "   3. The project is accessible with your access token"
-          exit 1
+          echo "🔧 Troubleshooting steps:"
+          echo "   1. Verify SUPABASE_ACCESS_TOKEN has access to project epqiarnkhzabggxiltci"
+          echo "   2. Check if project epqiarnkhzabggxiltci exists and is accessible"
+          echo "   3. Try linking directly: supabase link --project-ref epqiarnkhzabggxiltci"
+          echo "   4. Verify you're using the correct Supabase account"
+          echo ""
+          echo "🔍 Testing direct project link..."
+          if supabase link --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}; then
+            echo "✅ Direct project link successful"
+          else
+            echo "❌ Direct project link failed"
+            exit 1
+          fi
         fi
         
         echo "✅ Project is properly linked"
