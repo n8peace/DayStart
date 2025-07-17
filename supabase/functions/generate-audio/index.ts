@@ -22,6 +22,14 @@ interface ElevenLabsResponse {
 const BATCH_SIZE = 5 // Match ElevenLabs concurrency limit
 const MAX_RETRIES = 3
 
+// Helper function to ensure consistent UTC timestamp handling
+function ensureTimestampAfter(baseTimestamp: string | null, minOffsetMs: number = 1000): string {
+  const now = new Date();
+  const baseTime = baseTimestamp ? new Date(baseTimestamp) : now;
+  const targetTime = new Date(Math.max(now.getTime(), baseTime.getTime() + minOffsetMs));
+  return targetTime.toISOString();
+}
+
 // Helper function to validate content block before processing
 function validateContentBlock(contentBlock: ContentBlock): { valid: boolean; errors: string[] } {
   const errors: string[] = []
@@ -223,11 +231,20 @@ async function processContentBlock(
     const audioResult = await generateAudioForContentBlock(supabaseClient, contentBlock)
 
     if (audioResult.success && audioResult.audioUrl) { // Update content block with audio URL
-      // Ensure audio_generated_at >= script_generated_at with safety buffer
-      const now = new Date();
-      const scriptGeneratedAt = contentBlock.script_generated_at ? new Date(contentBlock.script_generated_at) : now;
-      // Always add at least 1 second buffer to ensure audio_generated_at > script_generated_at
-      const audioGeneratedAt = new Date(Math.max(now.getTime(), scriptGeneratedAt.getTime() + 1000));
+      // Use optimistic locking to prevent race conditions and ensure proper timestamp ordering
+      const { data: currentBlock, error: fetchError } = await supabaseClient
+        .from('content_blocks')
+        .select('script_generated_at, updated_at')
+        .eq('id', contentBlock.id)
+        .single();
+        
+      if (fetchError) {
+        throw new Error(`Failed to fetch current content block for update: ${fetchError.message}`);
+      }
+      
+      // Ensure audio_generated_at is always after script_generated_at with safety buffer
+      const finalAudioGeneratedAt = ensureTimestampAfter(currentBlock.script_generated_at, 2000); // 2 second buffer
+      
       const { data: updatedBlock, error: updateError } = await supabaseClient
         .from('content_blocks')
         .update({
@@ -235,7 +252,7 @@ async function processContentBlock(
           audio_url: audioResult.audioUrl,
           duration_seconds: audioResult.duration,
           audio_duration: audioResult.duration,
-          audio_generated_at: audioGeneratedAt.toISOString(),
+          audio_generated_at: finalAudioGeneratedAt.toISOString(),
           parameters: {
             ...contentBlock.parameters,
             audio_generated: true,
@@ -244,11 +261,23 @@ async function processContentBlock(
           }
         })
         .eq('id', contentBlock.id)
+        .eq('status', ContentBlockStatus.AUDIO_GENERATING) // Optimistic locking
+        .eq('updated_at', currentBlock.updated_at) // Optimistic locking
         .select()
         .single()
 
       if (updateError) {
-        throw updateError
+        // Check if this is a constraint violation
+        if (updateError.message.includes('content_blocks_audio_timing_check')) {
+          const currentScriptGeneratedAt = currentBlock.script_generated_at;
+          console.error(`Audio timing constraint violation for ${contentBlock.id}:`, {
+            script_generated_at: currentScriptGeneratedAt,
+            audio_generated_at: finalAudioGeneratedAt,
+            difference_ms: new Date(finalAudioGeneratedAt).getTime() - (currentScriptGeneratedAt ? new Date(currentScriptGeneratedAt).getTime() : 0)
+          });
+          throw new Error(`Audio timing constraint violation: audio_generated_at must be >= script_generated_at`);
+        }
+        throw updateError;
       }
       validateObjectShape(updatedBlock, ['id', 'audio_url', 'status'])
 
