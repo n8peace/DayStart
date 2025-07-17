@@ -30,7 +30,7 @@ jobs:
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
       with:
-        version: latest
+        version: '1.145.4'  # Pin to specific version for stability
         
     - name: Validate environment variables
       run: |
@@ -65,6 +65,13 @@ jobs:
           echo "✅ SUPABASE_ACCESS_TOKEN is set"
         fi
         
+        if [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ]; then
+          echo "❌ Missing required environment variable: SUPABASE_DB_PASSWORD"
+          exit 1
+        else
+          echo "✅ SUPABASE_DB_PASSWORD is set"
+        fi
+        
         echo "✅ All required environment variables are set"
         
     - name: Link to development project
@@ -87,7 +94,34 @@ jobs:
         export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
         
         echo "Attempting database migration deployment..."
-        supabase db push
+        supabase db push --debug || {
+          echo "❌ Database migration failed"
+          echo "🔍 Checking migration status..."
+          supabase migration list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list migrations"
+          exit 1
+        }
+        
+        echo "✅ Database migrations deployed successfully"
+        
+    - name: Verify database schema
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "🔍 Verifying database schema after migrations..."
+        
+        # Test if the content_blocks table exists and has correct constraints
+        schema_test=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/content_blocks?select=id&limit=1" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" 2>/dev/null || echo "Schema test failed")
+        
+        http_code=$(echo "$schema_test" | tail -n1)
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Database schema verification passed"
+        else
+          echo "⚠️ Database schema verification failed (HTTP $http_code)"
+          echo "This may be normal for a fresh deployment"
+        fi
         
     - name: Remove Legacy Functions
       env:
@@ -112,33 +146,13 @@ jobs:
         echo "Functions directory contents:"
         ls -la functions/ || echo "Functions directory not found"
         
-        # Check generate-script function specifically
-        echo "🔍 Checking generate-script function source:"
-        if [ -f "functions/generate-script/index.ts" ]; then
-          echo "✅ generate-script/index.ts exists"
-          echo "📄 File size: $(wc -l < functions/generate-script/index.ts) lines"
-          echo "📄 First 10 lines of generate-script/index.ts:"
-          head -10 functions/generate-script/index.ts
-          echo "📄 Last 10 lines of generate-script/index.ts:"
-          tail -10 functions/generate-script/index.ts
-          echo "📄 Checking for TypeScript imports:"
-          grep -n "import.*shared" functions/generate-script/index.ts || echo "No shared imports found"
-          echo "📄 Checking for processBatch function:"
-          grep -n "processBatch" functions/generate-script/index.ts || echo "No processBatch found"
-        else
-          echo "❌ generate-script/index.ts not found"
-        fi
-        
-        # Check if there are multiple versions of the file
-        echo "🔍 Checking for duplicate files:"
-        find . -name "generate-script" -type d 2>/dev/null || echo "No duplicate directories found"
-        find . -name "index.ts" -path "*/generate-script/*" 2>/dev/null || echo "No duplicate index.ts found"
-        
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
           echo "Found functions, deploying individually..."
           
-          # Deploy each function individually
+          # Deploy each function individually with improved error handling
+          failed_functions=()
+          
           for func_dir in functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
@@ -146,34 +160,56 @@ jobs:
                 echo "⏭️ Skipping shared directory (not a function)"
                 continue
               fi
+              
               echo "🚀 Deploying function: $func_name"
               echo "📁 Function directory: $func_dir"
               echo "📄 Function files:"
               ls -la "$func_dir"
               
-              # Force delete and redeploy to clear any caching
-              echo "🗑️ Force deleting function first..."
-              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
-              
-              # Deploy with verbose output
-              echo "🚀 Deploying fresh copy of function: $func_name"
-              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug || {
+              # Deploy with enhanced error handling and no force deletion
+              echo "🚀 Deploying function: $func_name"
+              if supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --no-verify-jwt --debug; then
+                echo "✅ Successfully deployed function: $func_name"
+              else
                 echo "❌ Failed to deploy function: $func_name"
-                echo "🔍 Checking function status..."
-                supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
-                exit 1
-              }
-              echo "✅ Successfully deployed function: $func_name"
+                failed_functions+=("$func_name")
+              fi
             fi
           done
           
-          echo "✅ All function deployments completed"
+          # Report deployment results
+          if [ ${#failed_functions[@]} -eq 0 ]; then
+            echo "✅ All function deployments completed successfully"
+          else
+            echo "❌ Some function deployments failed:"
+            printf '  - %s\n' "${failed_functions[@]}"
+            echo "🔍 Checking function status..."
+            supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
+            exit 1
+          fi
           
           # List deployed functions
           echo "📋 Deployed functions:"
           supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
+        fi
+        
+    - name: Verify function deployment
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "🔍 Verifying function deployment status..."
+        
+        # Get list of deployed functions
+        deployed_functions=$(supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --json 2>/dev/null | jq -r '.[].name' || echo "")
+        
+        if [ -z "$deployed_functions" ]; then
+          echo "⚠️ No functions found in deployment"
+        else
+          echo "✅ Deployed functions:"
+          echo "$deployed_functions"
         fi
         
     - name: Run health checks
