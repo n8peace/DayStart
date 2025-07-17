@@ -256,21 +256,23 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, userTeams, sportType, recentGames } = params
-      return `Review and refine this US sports update for ${date}:
+      const { date, dayOfWeek, userTeams, sportType, recentGames } = params
+      return `Review and refine this US sports update for ${dayOfWeek}, ${date}:
 
 ORIGINAL CONTENT:
 ${content}
 
 Time available: 30 seconds
 
+Date context: ${dayOfWeek}, ${date}
 User's favorite teams: ${userTeams || 'general US sports'}
 Sport focus: ${sportType || 'major US leagues (NFL, NBA, MLB, NHL, NCAA)'}
 Recent games: ${recentGames ? JSON.stringify(recentGames) : 'None'}
 
 Requirements:
+- Start with "It's ${dayOfWeek}, ${date}."
 - Focus on major US sports leagues (NFL, NBA, MLB, NHL, NCAA Football/Basketball)
-- Cover relevant games, scores, and key moments
+- Cover relevant games, scores, and key moments for this specific date
 - Use American sports terminology and team names
 - Include playoff implications, standings updates, or championship context when relevant
 - Mention star players, injuries, or notable performances
