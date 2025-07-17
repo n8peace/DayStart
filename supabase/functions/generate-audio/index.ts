@@ -226,8 +226,9 @@ async function processContentBlock(
     const audioResult = await generateAudioForContentBlock(supabaseClient, contentBlock)
 
     if (audioResult.success && audioResult.audioUrl) { // Update content block with audio URL
-      // Use simple timestamp approach like script generation - let database handle constraint validation
-      const now = new Date().toISOString()
+      // Use timestamp approach matching generate-script pattern to ensure constraint compliance
+      const now = new Date()
+      const audioGeneratedAt = new Date(now.getTime() + 1000).toISOString() // Ensure audio_generated_at > script_generated_at
       
       const { data: updatedBlock, error: updateError } = await supabaseClient
         .from('content_blocks')
@@ -236,7 +237,7 @@ async function processContentBlock(
           audio_url: audioResult.audioUrl,
           duration_seconds: audioResult.duration,
           audio_duration: audioResult.duration,
-          audio_generated_at: now,
+          audio_generated_at: audioGeneratedAt,
           parameters: {
             ...contentBlock.parameters,
             audio_generated: true,
