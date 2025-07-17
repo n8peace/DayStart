@@ -230,6 +230,27 @@ async function processContentBlock(
       const now = new Date()
       const audioGeneratedAt = new Date(now.getTime() + 1000).toISOString() // Ensure audio_generated_at > script_generated_at
       
+      // Log detailed constraint debugging information
+      console.log(`🔍 Constraint Debug for ${contentBlock.id}:`)
+      console.log(`  - script_generated_at: ${contentBlock.script_generated_at}`)
+      console.log(`  - audio_generated_at (to set): ${audioGeneratedAt}`)
+      console.log(`  - current status: ${contentBlock.status}`)
+      console.log(`  - voice: ${contentBlock.voice}`)
+      
+      // Fetch current state for debugging
+      const { data: currentState, error: fetchError } = await supabaseClient
+        .from('content_blocks')
+        .select('script_generated_at, audio_generated_at, status, updated_at')
+        .eq('id', contentBlock.id)
+        .single()
+      
+      if (!fetchError && currentState) {
+        console.log(`  - DB script_generated_at: ${currentState.script_generated_at}`)
+        console.log(`  - DB audio_generated_at: ${currentState.audio_generated_at}`)
+        console.log(`  - DB status: ${currentState.status}`)
+        console.log(`  - DB updated_at: ${currentState.updated_at}`)
+      }
+      
       const { data: updatedBlock, error: updateError } = await supabaseClient
         .from('content_blocks')
         .update({
@@ -251,6 +272,10 @@ async function processContentBlock(
         .single()
 
       if (updateError) {
+        console.error(`❌ Update failed for ${contentBlock.id}:`, updateError)
+        console.error(`  - Error code: ${updateError.code}`)
+        console.error(`  - Error message: ${updateError.message}`)
+        console.error(`  - Error details: ${updateError.details}`)
         throw updateError;
       }
       validateObjectShape(updatedBlock, ['id', 'audio_url', 'status'])
