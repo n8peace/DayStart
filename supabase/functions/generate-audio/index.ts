@@ -19,7 +19,7 @@ interface ElevenLabsResponse {
   audio_length: number // duration in seconds
 }
 
-const BATCH_SIZE = 5 // Match ElevenLabs concurrency limit - FORCE DEPLOY
+const BATCH_SIZE = 5 // Match ElevenLabs concurrency limit
 const MAX_RETRIES = 3
 
 // Helper function to ensure consistent UTC timestamp handling
