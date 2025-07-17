@@ -247,19 +247,26 @@ serve(async (req) => {
       date: utcDateStr,
       content: content,
       parameters: {
-        sports_data: sportsData,
+        sports_data: sportsData, // Keep full data for now as requested
         sports_errors: sportsErrors,
         sports_events: sportsEvents,
         us_sports_focus: true,
         execution_status: executionStatus,
         api_call_count: apiCallCount,
         successful_apis: Object.keys(sportsData).length,
-        failed_apis: Object.keys(sportsErrors).length
+        failed_apis: Object.keys(sportsErrors).length,
+        data_size_bytes: JSON.stringify(sportsData).length
       },
       status: finalStatus,
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
+    }
+
+    // Check data size and warn if too large
+    const dataSize = JSON.stringify(sportsData).length
+    if (dataSize > 1000000) { // 1MB warning threshold
+      console.warn(`Large sports data detected: ${(dataSize / 1024 / 1024).toFixed(2)}MB`)
     }
 
     const { data, error } = await supabaseClient
@@ -285,7 +292,8 @@ serve(async (req) => {
           metadata: { 
             content_type: 'sports', 
             date: utcDateStr,
-            execution_status: executionStatus
+            execution_status: executionStatus,
+            data_size_bytes: dataSize
           }
         })
     } catch (logError) {
@@ -295,11 +303,20 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        content_block: data,
+        content_block: {
+          id: data.id,
+          content_type: data.content_type,
+          date: data.date,
+          status: data.status,
+          content: data.content
+        },
         execution_status: executionStatus,
         sports_errors: sportsErrors,
         sports_data_summary: Object.keys(sportsData),
-        api_call_count: apiCallCount
+        api_call_count: apiCallCount,
+        // Removed sports_data from response to prevent "output too large" error
+        // Full data is still stored in database parameters
+        data_size_bytes: dataSize
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -61,9 +61,8 @@ serve(async (req) => {
   // Validate required environment variables
   validateEnvVars([
     'SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'RAPIDAPI_KEY',
-    'NEWS_API_KEY'
+    'SUPABASE_SERVICE_ROLE_KEY'
+    // RAPIDAPI_KEY and NEWS_API_KEY are optional - will use fallbacks if missing
   ])
 
   try {
@@ -214,7 +213,8 @@ serve(async (req) => {
           marketError = 'No market data available from Yahoo Finance'
         }
       } else {
-        marketError = 'RapidAPI key not configured'
+        marketError = 'RapidAPI key not configured - using fallback content'
+        console.warn('RAPIDAPI_KEY not configured, using fallback market content')
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
@@ -267,7 +267,8 @@ serve(async (req) => {
           console.error('News API failed:', response.status)
         }
       } else {
-        newsError = 'News API key not configured'
+        newsError = 'News API key not configured - skipping business news'
+        console.warn('NEWS_API_KEY not configured, skipping business news')
       }
     } catch (error: any) {
       newsError = `News API error: ${error.message}`
@@ -306,6 +307,8 @@ serve(async (req) => {
       content += marketSummary.join('. ')
     } else if (quotaExceeded) {
       content += 'Market data temporarily unavailable due to API quota limits. Please check back later.'
+    } else if (marketError) {
+      content += 'Market data unavailable due to technical issues. Check back later for updates.'
     } else {
       content += 'Market data unavailable'
     }
@@ -327,8 +330,8 @@ serve(async (req) => {
       finalStatus = ContentBlockStatus.CONTENT_READY // Still mark as ready since we have fallback content
       executionStatus = 'completed_with_warnings'
     } else if (marketError && !marketData) {
-      finalStatus = ContentBlockStatus.CONTENT_FAILED
-      executionStatus = 'completed_with_errors'
+      finalStatus = ContentBlockStatus.CONTENT_READY // Mark as ready with fallback content
+      executionStatus = 'completed_with_fallback'
     }
 
     // Create content block
@@ -359,6 +362,7 @@ serve(async (req) => {
       .single()
 
     if (error) {
+      console.error('Database insert error:', error)
       throw error
     }
     validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
