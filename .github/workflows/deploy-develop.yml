@@ -100,10 +100,20 @@ jobs:
         echo "🔍 Verifying project link..."
         
         # Check if project is properly linked
+        echo "🔍 Looking for project: ${{ secrets.SUPABASE_DEVELOP_PROJECT }}"
+        echo "🔍 Available projects:"
+        supabase projects list
+        
+        # Check if the target project exists in the list
         if ! supabase projects list | grep -q "${{ secrets.SUPABASE_DEVELOP_PROJECT }}"; then
-          echo "❌ Project not found in linked projects"
-          echo "🔍 Available projects:"
-          supabase projects list
+          echo "❌ Project ${{ secrets.SUPABASE_DEVELOP_PROJECT }} not found in linked projects"
+          echo "🔍 Available project reference IDs:"
+          supabase projects list | grep -E '^[[:space:]]*[a-zA-Z0-9]+' | awk '{print $3}'
+          echo ""
+          echo "🔧 Please verify:"
+          echo "   1. SUPABASE_DEVELOP_PROJECT secret is set correctly"
+          echo "   2. You're using the DayStart project reference ID: yqbrfznixefqqhnvingu"
+          echo "   3. The project is accessible with your access token"
           exit 1
         fi
         
