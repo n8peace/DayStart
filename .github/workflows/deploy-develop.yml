@@ -11,7 +11,7 @@ on:
         default: 'false'
 
 jobs:
-  deploy-develop:
+  deploy-development:
     name: Deploy to Development
     runs-on: ubuntu-latest
     environment: develop
@@ -74,24 +74,6 @@ jobs:
         
         echo "✅ All required environment variables are set"
         
-    - name: Verify Supabase access and list projects
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        echo "🔍 Verifying Supabase access..."
-        echo "🔍 Testing access token..."
-        
-        # Test if we can list projects
-        if supabase projects list; then
-          echo "✅ Access token is valid"
-          echo "📋 All accessible projects:"
-          supabase projects list
-        else
-          echo "❌ Access token is invalid or expired"
-          echo "🔧 Please check SUPABASE_ACCESS_TOKEN secret"
-          exit 1
-        fi
-        
     - name: Link to development project
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -107,43 +89,9 @@ jobs:
       run: |
         cd supabase
         echo "Deploying database migrations to development..."
-        
-        # Set the database password for the connection
         export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
-        
         echo "Attempting database migration deployment..."
-        
-        # Simplified migration deployment with basic error handling
-        if supabase db push; then
-          echo "✅ Database migration successful"
-        else
-          echo "❌ Database migration failed"
-          echo "🔍 Checking migration status..."
-          supabase migration list || echo "Could not list migrations"
-          exit 1
-        fi
-        
-        echo "✅ Database migrations deployed successfully"
-        
-    - name: Verify database schema
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "🔍 Verifying database schema after migrations..."
-        
-        # Test if the content_blocks table exists and has correct constraints
-        schema_test=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/content_blocks?select=id&limit=1" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json" 2>/dev/null || echo "Schema test failed")
-        
-        http_code=$(echo "$schema_test" | tail -n1)
-        if [ "$http_code" = "200" ]; then
-          echo "✅ Database schema verification passed"
-        else
-          echo "⚠️ Database schema verification failed (HTTP $http_code)"
-          echo "This may be normal for a fresh deployment"
-        fi
+        supabase db push
         
     - name: Remove Legacy Functions
       env:
@@ -155,61 +103,6 @@ jobs:
         supabase functions delete generate-message --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "generate-message not found or already removed"
         supabase functions delete test-voice --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "test-voice not found or already removed"
         echo "Legacy function removal complete"
-        
-    - name: Deploy Shared Modules First
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "📦 Deploying shared modules first..."
-        echo "Current directory: $(pwd)"
-        echo "Git commit hash: $(git rev-parse HEAD)"
-        echo "Git branch: $(git branch --show-current)"
-
-        # Check if shared directory exists
-        if [ -d "functions/shared" ]; then
-          echo "📁 Shared directory contents:"
-          ls -la functions/shared/
-
-          # Create a temporary function to deploy shared modules
-          echo "🔧 Creating temporary shared function for deployment..."
-          mkdir -p functions/temp-shared
-          
-          # Create the temp function file using echo (no heredoc)
-          echo 'import { serve } from "https://deno.land/std@0.168.0/http/server.ts";' > functions/temp-shared/index.ts
-          echo 'import { corsHeaders } from "../shared/config.ts";' >> functions/temp-shared/index.ts
-          echo 'import { utcDate } from "../shared/utils.ts";' >> functions/temp-shared/index.ts
-          echo 'import { validateEnvVars } from "../shared/validation.ts";' >> functions/temp-shared/index.ts
-          echo 'import { ContentBlockStatus } from "../shared/status.ts";' >> functions/temp-shared/index.ts
-          echo '' >> functions/temp-shared/index.ts
-          echo 'serve(async (req) => {' >> functions/temp-shared/index.ts
-          echo '  if (req.method === "OPTIONS") {' >> functions/temp-shared/index.ts
-          echo '    return new Response("ok", { headers: corsHeaders });' >> functions/temp-shared/index.ts
-          echo '  }' >> functions/temp-shared/index.ts
-          echo '' >> functions/temp-shared/index.ts
-          echo '  return new Response(JSON.stringify({' >> functions/temp-shared/index.ts
-          echo '    status: "shared_modules_loaded",' >> functions/temp-shared/index.ts
-          echo '    timestamp: new Date().toISOString(),' >> functions/temp-shared/index.ts
-          echo '    modules: ["config", "utils", "validation", "status", "types"]' >> functions/temp-shared/index.ts
-          echo '  }), {' >> functions/temp-shared/index.ts
-          echo '    headers: { ...corsHeaders, "Content-Type": "application/json" },' >> functions/temp-shared/index.ts
-          echo '    status: 200' >> functions/temp-shared/index.ts
-          echo '  });' >> functions/temp-shared/index.ts
-          echo '});' >> functions/temp-shared/index.ts
-
-          echo "🚀 Deploying shared modules via temporary function..."
-          if supabase functions deploy temp-shared --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
-            echo "✅ Successfully deployed shared modules"
-            # Clean up temporary function
-            echo "🧹 Cleaning up temporary shared function..."
-            supabase functions delete temp-shared --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Temp function cleanup failed"
-          else
-            echo "❌ Failed to deploy shared modules"
-            exit 1
-          fi
-        else
-          echo "⚠️ No shared directory found"
-        fi
         
     - name: Deploy Edge Functions
       env:
@@ -227,42 +120,36 @@ jobs:
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
           echo "Found functions, deploying individually..."
           
-          # Deploy each function individually with improved error handling
-          failed_functions=()
-          
+          # Deploy each function individually
           for func_dir in functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
-              if [ "$func_name" = "shared" ] || [ "$func_name" = "temp-shared" ]; then
-                echo "⏭️ Skipping $func_name directory (not a deployable function)"
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
                 continue
               fi
-              
               echo "🚀 Deploying function: $func_name"
               echo "📁 Function directory: $func_dir"
               echo "📄 Function files:"
               ls -la "$func_dir"
               
-              # Simple deploy (update or create function)
-              if supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
-                echo "✅ Successfully deployed function: $func_name"
-              else
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
+              
+              # Deploy with verbose output
+              echo "🚀 Deploying fresh copy of function: $func_name"
+              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug || {
                 echo "❌ Failed to deploy function: $func_name"
-                failed_functions+=("$func_name")
-              fi
+                echo "🔍 Checking function status..."
+                supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
+                exit 1
+              }
+              echo "✅ Successfully deployed function: $func_name"
             fi
           done
           
-          # Report deployment results
-          if [ ${#failed_functions[@]} -eq 0 ]; then
-            echo "✅ All function deployments completed successfully"
-          else
-            echo "❌ Some function deployments failed:"
-            printf '  - %s\n' "${failed_functions[@]}"
-            echo "🔍 Checking function status..."
-            supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
-            exit 1
-          fi
+          echo "✅ All function deployments completed"
           
           # List deployed functions
           echo "📋 Deployed functions:"
@@ -271,28 +158,9 @@ jobs:
           echo "⚠️ No functions to deploy - functions directory is empty"
         fi
         
-    - name: Verify function deployment
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        cd supabase
-        echo "🔍 Verifying function deployment status..."
-        
-        # Get list of deployed functions
-        deployed_functions=$(supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} 2>/dev/null | grep -E '^[a-zA-Z0-9-]+' | awk '{print $1}' || echo "")
-        
-        if [ -z "$deployed_functions" ]; then
-          echo "⚠️ No functions found in deployment"
-        else
-          echo "✅ Deployed functions:"
-          echo "$deployed_functions"
-        fi
-        
     - name: Run health checks
       run: |
         echo "🏥 Running health checks..."
-        echo "⏳ Waiting 30 seconds for functions to warm up..."
-        sleep 30
         
         # Check if any functions exist before testing them
         if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
@@ -329,9 +197,6 @@ jobs:
             elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
               echo "✅ $func_name function is healthy (no weather data available - expected)"
               return 0
-            elif [ "$http_code" = "404" ]; then
-              echo "⚠️ $func_name function returned 404 (may need time to warm up)"
-              return 0  # Don't fail deployment for 404s
             else
               echo "❌ $func_name function health check failed (HTTP $http_code)"
               return 1
@@ -378,44 +243,30 @@ jobs:
         else
           echo "⚠️ No functions to test - functions directory is empty"
         fi
-        
-        # Test database connectivity with detailed logging
-        echo ""
-        echo "🗄️ Testing database connectivity..."
-        echo "  📡 Making request to: ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count"
-        
-        db_response=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count" \
+        echo "Testing database connectivity..."
+        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json")
-        
-        db_http_code=$(echo "$db_response" | tail -n1)
-        db_response_body=$(echo "$db_response" | head -n -1)
-        
-        echo "  📊 HTTP Status: $db_http_code"
-        echo "  📄 Response body: $db_response_body"
-        
-        if [ "$db_http_code" = "200" ]; then
-          echo "  ✅ Database connectivity is healthy"
-        elif [ "$db_http_code" = "401" ]; then
-          echo "  ⚠️ Database connectivity check failed (HTTP 401)"
-          echo "  🔍 This is expected for a fresh development deployment or missing migrations"
+        http_code=$(echo "$response" | tail -n1)
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Database connectivity is healthy"
+        elif [ "$http_code" = "401" ]; then
+          echo "⚠️ Database connectivity check failed (HTTP 401) - likely due to empty database or missing migrations"
+          echo "This is expected for a fresh development deployment"
         else
-          echo "  ⚠️ Database connectivity check failed (HTTP $db_http_code)"
-          echo "  🔍 This may be due to empty database or missing migrations"
+          echo "⚠️ Database connectivity check failed (HTTP $http_code) - but continuing deployment"
+          echo "This may be due to empty database or missing migrations"
         fi
         
     - name: Verify deployment status
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
-        echo "🔍 Verifying development deployment..."
-        
-        # Check if we can access the Supabase API
-        echo "📡 Testing Supabase API connectivity..."
+        echo "Verifying development deployment..."
+        echo "Testing Supabase API connectivity..."
         response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/ \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json")
-        
         http_code=$(echo "$response" | tail -n1)
         if [ "$http_code" = "200" ]; then
           echo "✅ Supabase API is accessible"
@@ -423,23 +274,14 @@ jobs:
           echo "⚠️ Supabase API connectivity check failed (HTTP $http_code)"
           echo "This may be normal for a fresh deployment"
         fi
-        
-        # Check migration status
-        echo ""
-        echo "🗄️ Checking migration status..."
+        echo "Checking migration status..."
         cd supabase
         if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
-          echo "✅ Migrations directory contains files:"
+          echo "✅ Migrations directory contains files"
           ls -la migrations/
-          
-          # List deployed functions
-          echo ""
-          echo "🔧 Checking deployed functions..."
-          supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No migrations found"
         fi
-        
         echo "✅ Deployment verification complete"
         
     - name: Notify deployment success
