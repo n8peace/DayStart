@@ -95,17 +95,22 @@ jobs:
         
         echo "Attempting database migration deployment..."
         
-        # Test database connectivity first
+        # Test database connectivity first using a simple query
         echo "🔍 Testing database connectivity before migration..."
-        if ! supabase db ping --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}; then
-          echo "❌ Database connectivity test failed"
-          echo "🔍 This may be due to network issues or incorrect credentials"
-          echo "🔍 Checking if project is linked correctly..."
-          supabase projects list || echo "Could not list projects"
+        echo "🔍 Verifying project link..."
+        
+        # Check if project is properly linked
+        if ! supabase projects list | grep -q "${{ secrets.SUPABASE_DEVELOP_PROJECT }}"; then
+          echo "❌ Project not found in linked projects"
+          echo "🔍 Available projects:"
+          supabase projects list
           exit 1
         fi
         
+        echo "✅ Project is properly linked"
+        
         # Attempt migration with retry logic
+        echo "🔄 Attempting database migration..."
         max_retries=3
         retry_count=0
         
@@ -123,6 +128,11 @@ jobs:
               echo "❌ Database migration failed after $max_retries attempts"
               echo "🔍 Checking migration status..."
               supabase migration list || echo "Could not list migrations"
+              echo "🔍 Checking for network connectivity issues..."
+              echo "🔍 This may be due to:"
+              echo "   - Network connectivity issues"
+              echo "   - Database credentials"
+              echo "   - Database server status"
               exit 1
             fi
           fi
