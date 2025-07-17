@@ -75,12 +75,18 @@ serve(async (req) => {
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
+    let executionStatus = 'completed'
+    let apiCallCount = 0
+
     // Generate encouragement content using GPT-4
-    let encouragementContent = null
-    let gptError = null
+    let encouragementContent: string | null = null
+    let gptError: string | null = null
     try {
       const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
       if (openaiApiKey) {
+        apiCallCount++
+        console.log('Making OpenAI GPT-4 API call for encouragement content')
+        
         const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -109,21 +115,32 @@ serve(async (req) => {
           const gptData = await gptResponse.json()
           if (gptData.choices && gptData.choices[0]?.message?.content) {
             encouragementContent = gptData.choices[0].message.content.trim()
+            console.log('Successfully generated encouragement content via GPT-4')
           } else {
             gptError = 'Invalid GPT response format'
+            console.error('Invalid GPT response format:', gptData)
           }
         } else {
           gptError = `OpenAI API failed: ${gptResponse.status}`
+          console.error('OpenAI API failed:', gptResponse.status)
         }
       } else {
         gptError = 'OpenAI API key not configured'
+        console.warn('OpenAI API key not configured')
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
         gptError = 'OpenAI API request timed out'
+        console.error('OpenAI API timeout error:', error)
       } else {
         gptError = `OpenAI API error: ${error.message}`
+        console.error('OpenAI API error:', error)
       }
+    }
+
+    // Determine execution status based on API results
+    if (gptError) {
+      executionStatus = 'completed_with_warnings'
     }
 
     // Log API call
@@ -134,23 +151,38 @@ serve(async (req) => {
           event_type: 'api_call',
           status: gptError ? 'error' : 'success',
           message: gptError || 'Encouragement content generated successfully',
-          metadata: { api: 'openai_gpt4' }
+          metadata: { 
+            api: 'openai_gpt4',
+            execution_status: executionStatus
+          }
         })
     } catch (logError) {
-      safeLogError('Failed to log API call:', logError)
+      console.error('Failed to log API call:', logError)
+    }
+
+    // Create fallback content if GPT fails
+    const finalContent = encouragementContent || 'Have a wonderful day filled with positivity and growth!'
+
+    // Determine content block status
+    let finalStatus = ContentBlockStatus.CONTENT_READY
+    if (gptError && !encouragementContent) {
+      // Still mark as ready since we have fallback content
+      finalStatus = ContentBlockStatus.CONTENT_READY
     }
 
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'encouragement',
       date: utcDateStr,
-      content: encouragementContent || 'Have a wonderful day filled with positivity and growth!',
+      content: finalContent,
       parameters: {
         gpt_generated: !!encouragementContent,
         gpt_error: gptError,
-        fallback_used: !encouragementContent
+        fallback_used: !encouragementContent,
+        execution_status: executionStatus,
+        api_call_count: apiCallCount
       },
-      status: gptError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
+      status: finalStatus,
       content_priority: 6,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -176,17 +208,23 @@ serve(async (req) => {
           status: 'success',
           message: 'Encouragement content generated successfully',
           content_block_id: data.id,
-          metadata: { content_type: 'encouragement', date: utcDateStr }
+          metadata: { 
+            content_type: 'encouragement', 
+            date: utcDateStr,
+            execution_status: executionStatus
+          }
         })
     } catch (logError) {
-      safeLogError('Failed to log successful generation:', logError)
+      console.error('Failed to log successful generation:', logError)
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         content_block: data,
-        gpt_error: gptError
+        execution_status: executionStatus,
+        gpt_error: gptError,
+        api_call_count: apiCallCount
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -210,20 +248,28 @@ serve(async (req) => {
           event_type: 'content_generation_failed',
           status: 'error',
           message: `Encouragement content generation failed: ${error.message}`,
-          metadata: { content_type: 'encouragement', error: error.toString() }
+          metadata: { 
+            content_type: 'encouragement', 
+            error: error.toString(),
+            errorType: error.name,
+            stack: error.stack
+          }
         })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({
-        success: false,
-        error: error.message
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'encouragement'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 200 // Always 200 for cron job success
       }
     )
   }

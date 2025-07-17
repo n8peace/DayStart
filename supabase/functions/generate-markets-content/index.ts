@@ -62,7 +62,7 @@ serve(async (req) => {
   validateEnvVars([
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'ALPHA_VANTAGE_API_KEY'
+    'RAPIDAPI_KEY'
   ])
 
   try {
@@ -76,83 +76,212 @@ serve(async (req) => {
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    // Fetch market data from Alpha Vantage API
-    let marketData = null
-    let marketError = null
+    // Enhanced logging for API quota monitoring
+    const logApiCall = async (symbol: string, status: string, details: any) => {
+      try {
+        await supabaseClient
+          .from('logs')
+          .insert({
+            event_type: 'api_call',
+            status: status,
+            message: `Yahoo Finance API call for ${symbol}`,
+            metadata: { 
+              api: 'yahoo_finance_markets',
+              symbol: symbol,
+              details: details,
+              timestamp: new Date().toISOString()
+            }
+          })
+      } catch (logError) {
+        console.error(`Failed to log API call for ${symbol}:`, logError)
+      }
+    }
+
+    // Fetch market data from Yahoo Finance API via RapidAPI with enhanced error handling
+    let marketData: any = null
+    let marketError: string | null = null
+    let quotaExceeded = false
+    let apiCallCount = 0
+    
     try {
-      const alphaVantageApiKey = Deno.env.get('ALPHA_VANTAGE_API_KEY')
-      if (alphaVantageApiKey) {
-        // Fetch major indices data
-        const indices = ['^GSPC', '^DJI', '^TNX'] // S&P 500, NASDAQ, Dow Jones
+      const rapidApiKey = Deno.env.get('RAPIDAPI_KEY')
+      if (rapidApiKey) {
+        // Fetch major indices data - using Yahoo Finance symbols
+        const symbols = ['^GSPC', '^DJI', '^TNX'] // S&P 500, Dow Jones, 10-Year Treasury
         const marketResults = {}
-        for (const symbol of indices) {
+        
+        // Make a single API call for all symbols (more efficient)
+        try {
+          apiCallCount++
+          console.log(`Making Yahoo Finance API call for symbols: ${symbols.join(', ')}`)
+          
+          const symbolsParam = symbols.join('%2C') // URL encode comma
+          const response = await fetch(`https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes?region=US&symbols=${symbolsParam}`, {
+            headers: {
+              'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com',
+              'x-rapidapi-key': rapidApiKey
+            },
+            signal: AbortSignal.timeout(15000) // 15 second timeout
+          })
+          
+          const responseText = await response.text()
+          let data
           try {
-            const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${alphaVantageApiKey}`, {
-              signal: AbortSignal.timeout(10000) // 10 second timeout
+            data = JSON.parse(responseText)
+          } catch (parseError) {
+            console.error(`Failed to parse JSON response:`, responseText)
+            await logApiCall('all_symbols', 'error', { 
+              error: 'JSON parse failed', 
+              responseText: responseText.substring(0, 500),
+              status: response.status 
             })
-            if (response.ok) {
-              const data = await response.json()
-              if (data['Global Quote']) {
-                marketResults[symbol] = data['Global Quote']
+            throw new Error('Failed to parse API response')
+          }
+          
+          // Log the API response for debugging
+          console.log(`Yahoo Finance API response:`, JSON.stringify(data, null, 2))
+          
+          // Check for quota/rate limiting errors
+          if (response.status === 429 || data.error || data.message?.includes('quota')) {
+            const errorMessage = data.error || data.message || 'Rate limit exceeded'
+            console.error(`Quota/Rate limit error:`, errorMessage)
+            quotaExceeded = true
+            await logApiCall('all_symbols', 'quota_exceeded', { 
+              error: errorMessage, 
+              status: response.status,
+              headers: Object.fromEntries(response.headers.entries())
+            })
+            throw new Error('API quota exceeded')
+          }
+          
+          // Check for API key errors
+          if (response.status === 401 || response.status === 403) {
+            const errorMessage = data.error || data.message || 'API key error'
+            console.error(`API key error:`, errorMessage)
+            await logApiCall('all_symbols', 'auth_error', { 
+              error: errorMessage, 
+              status: response.status 
+            })
+            throw new Error('API authentication failed')
+          }
+          
+          if (response.ok && data.quoteResponse && data.quoteResponse.result) {
+            const quotes = data.quoteResponse.result
+            for (const quote of quotes) {
+              const symbol = quote.symbol
+              if (symbols.includes(symbol)) {
+                marketResults[symbol] = {
+                  symbol: quote.symbol,
+                  price: quote.regularMarketPrice,
+                  change: quote.regularMarketChange,
+                  changePercent: quote.regularMarketChangePercent,
+                  volume: quote.regularMarketVolume,
+                  marketCap: quote.marketCap
+                }
               }
             }
-          } catch (error) {
-            console.error(`Error fetching ${symbol}:`, error)
+            
+            await logApiCall('all_symbols', 'success', { 
+              status: response.status,
+              symbols_fetched: Object.keys(marketResults),
+              hasData: Object.keys(marketResults).length > 0
+            })
+          } else {
+            console.warn(`No market data in response:`, data)
+            await logApiCall('all_symbols', 'no_data', { 
+              status: response.status,
+              response: data 
+            })
           }
+          
+        } catch (error) {
+          console.error(`Error fetching market data:`, error)
+          await logApiCall('all_symbols', 'error', { 
+            error: error.message,
+            errorType: error.name,
+            stack: error.stack 
+          })
+          throw error
         }
 
         if (Object.keys(marketResults).length > 0) {
           marketData = marketResults
+          console.log('Successfully fetched market data:', Object.keys(marketResults))
+        } else if (quotaExceeded) {
+          marketError = 'Yahoo Finance API quota exceeded - please increase quota or wait for reset'
         } else {
-          marketError = 'No market data available from Alpha Vantage'
+          marketError = 'No market data available from Yahoo Finance'
         }
       } else {
-        marketError = 'Alpha Vantage API key not configured'
+        marketError = 'RapidAPI key not configured'
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
-        marketError = 'Alpha Vantage API request timed out'
+        marketError = 'Yahoo Finance API request timed out'
+        console.error('API timeout error:', error)
       } else {
-        marketError = `Alpha Vantage API error: ${error.message}`
+        marketError = `Yahoo Finance API error: ${error.message}`
+        console.error('API general error:', error)
+      }
+      
+      // Log the overall API error
+      try {
+        await supabaseClient
+          .from('logs')
+          .insert({
+            event_type: 'api_error',
+            status: 'error',
+            message: `Yahoo Finance API general error: ${error.message}`,
+            metadata: { 
+              api: 'yahoo_finance_markets',
+              error: error.toString(),
+              errorType: error.name,
+              stack: error.stack
+            }
+          })
+      } catch (logError) {
+        console.error('Failed to log API error:', logError)
       }
     }
 
-    // Log API call
-    try {
-      await supabaseClient
-        .from('logs')
-        .insert({
-          event_type: 'api_call',
-          status: marketError ? 'error' : 'success',
-          message: marketError || 'Market data fetched successfully',
-          metadata: { api: 'alpha_vantage_markets' }
-        })
-    } catch (logError) {
-      safeLogError('Failed to log API call:', logError)
-    }
-
-    // Create market content summary
+    // Create market content summary with fallback for quota issues
     let content = 'Market Update: '
     const marketSummary = []
 
     if (marketData) {
       for (const [symbol, data] of Object.entries(marketData)) {
         const quote = data as any
-        const price = quote['05. price']
-        const change = quote['09. change']
-        const changePercent = quote['10. change percent']
+        const price = quote.price
+        const change = quote.change
+        const changePercent = quote.changePercent
         
-        if (price && change) {
+        if (price && change !== undefined) {
           const changeDirection = parseFloat(change) >= 0 ? '+' : ''
-          marketSummary.push(`${symbol}: $${price} (${changeDirection}${change.toFixed(2)}%, ${changePercent.toFixed(2)}%)`)
+          const changeFormatted = parseFloat(change).toFixed(2)
+          const percentFormatted = parseFloat(changePercent).toFixed(2)
+          marketSummary.push(`${symbol}: $${price} (${changeDirection}${changeFormatted}, ${percentFormatted}%)`)
         }
       }
     }
 
     if (marketSummary.length > 0) {
       content += marketSummary.join('. ')
+    } else if (quotaExceeded) {
+      content += 'Market data temporarily unavailable due to API quota limits. Please check back later.'
     } else {
       content += 'Market data unavailable'
+    }
+
+    // Determine status based on quota issues and errors
+    let finalStatus: string = ContentBlockStatus.CONTENT_READY
+    let executionStatus = 'completed'
+    
+    if (quotaExceeded) {
+      finalStatus = ContentBlockStatus.CONTENT_READY // Still mark as ready since we have fallback content
+      executionStatus = 'completed_with_warnings'
+    } else if (marketError && !marketData) {
+      finalStatus = ContentBlockStatus.CONTENT_FAILED
+      executionStatus = 'completed_with_errors'
     }
 
     // Create content block
@@ -163,9 +292,12 @@ serve(async (req) => {
       parameters: {
         market_data: marketData,
         market_error: marketError,
-        market_summary: marketSummary
+        market_summary: marketSummary,
+        quota_exceeded: quotaExceeded,
+        api_call_count: apiCallCount,
+        execution_status: executionStatus
       },
-      status: marketError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
+      status: finalStatus,
       content_priority: 5,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -191,7 +323,13 @@ serve(async (req) => {
           status: 'success',
           message: 'Markets content generated successfully',
           content_block_id: data.id,
-          metadata: { content_type: 'markets', date: utcDateStr }
+          metadata: { 
+            content_type: 'markets', 
+            date: utcDateStr,
+            quota_exceeded: quotaExceeded,
+            api_call_count: apiCallCount,
+            has_market_data: !!marketData
+          }
         })
     } catch (logError) {
       safeLogError('Failed to log successful generation:', logError)
@@ -201,7 +339,10 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         content_block: data,
-        market_error: marketError
+        market_error: marketError,
+        quota_exceeded: quotaExceeded,
+        api_call_count: apiCallCount,
+        execution_status: executionStatus
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -212,7 +353,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error generating markets content:', error)
 
-    // Log error
+    // Enhanced error logging
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -225,20 +366,29 @@ serve(async (req) => {
           event_type: 'content_generation_failed',
           status: 'error',
           message: `Markets content generation failed: ${error.message}`,
-          metadata: { content_type: 'markets', error: error.toString() }
+          metadata: { 
+            content_type: 'markets', 
+            error: error.toString(),
+            errorType: error.name,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+          }
         })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'markets'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200 // Always 200 for cron job success
       }
     )
   }

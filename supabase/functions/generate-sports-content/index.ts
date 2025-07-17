@@ -85,42 +85,81 @@ serve(async (req) => {
 
     const sportsData = {}
     const sportsErrors = {}
+    let executionStatus = 'completed'
+    let apiCallCount = 0
 
     // Fetch data for each major US sport
     for (const sport of usSports) {
       try {
-        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.sport}/${sport.league}/scoreboard`)
+        apiCallCount++
+        console.log(`Making ESPN API call ${apiCallCount}/6 for ${sport.name}`)
+        
+        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.sport}/${sport.league}/scoreboard`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
+        
         if (response.ok) {
           sportsData[sport.name] = await response.json()
+          console.log(`Successfully fetched ${sport.name} data`)
         } else {
           sportsErrors[sport.name] = `ESPN ${sport.name} API failed: ${response.status}`
+          console.error(`ESPN ${sport.name} API failed:`, response.status)
         }
       } catch (error) {
         sportsErrors[sport.name] = `ESPN ${sport.name} API error: ${error.message}`
+        console.error(`ESPN ${sport.name} API error:`, error)
       }
     }
 
     // Fetch NCAA Football and Basketball data
     try {
-      const ncaaFootballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard')
+      apiCallCount++
+      console.log(`Making ESPN API call ${apiCallCount}/6 for NCAA Football`)
+      
+      const ncaaFootballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard', {
+        signal: AbortSignal.timeout(10000)
+      })
+      
       if (ncaaFootballResponse.ok) {
         sportsData['NCAA Football'] = await ncaaFootballResponse.json()
+        console.log('Successfully fetched NCAA Football data')
       } else {
         sportsErrors['NCAA Football'] = `ESPN NCAA Football API failed: ${ncaaFootballResponse.status}`
+        console.error('ESPN NCAA Football API failed:', ncaaFootballResponse.status)
       }
     } catch (error) {
       sportsErrors['NCAA Football'] = `ESPN NCAA Football API error: ${error.message}`
+      console.error('ESPN NCAA Football API error:', error)
     }
 
     try {
-      const ncaaBasketballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard')
+      apiCallCount++
+      console.log(`Making ESPN API call ${apiCallCount}/6 for NCAA Basketball`)
+      
+      const ncaaBasketballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard', {
+        signal: AbortSignal.timeout(10000)
+      })
+      
       if (ncaaBasketballResponse.ok) {
         sportsData['NCAA Basketball'] = await ncaaBasketballResponse.json()
+        console.log('Successfully fetched NCAA Basketball data')
       } else {
         sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API failed: ${ncaaBasketballResponse.status}`
+        console.error('ESPN NCAA Basketball API failed:', ncaaBasketballResponse.status)
       }
     } catch (error) {
       sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API error: ${error.message}`
+      console.error('ESPN NCAA Basketball API error:', error)
+    }
+
+    // Determine execution status based on API results
+    const totalApis = Object.keys(sportsData).length + Object.keys(sportsErrors).length
+    const errorCount = Object.keys(sportsErrors).length
+    
+    if (errorCount === totalApis) {
+      executionStatus = 'completed_with_errors'
+    } else if (errorCount > 0) {
+      executionStatus = 'completed_with_warnings'
     }
 
     // Log API calls
@@ -130,7 +169,10 @@ serve(async (req) => {
         event_type: 'api_call',
         status: 'error',
         message: error,
-        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
+        metadata: { 
+          api: `espn_${sport.toLowerCase().replace(' ', '_')}`,
+          execution_status: executionStatus
+        }
       })
     }
     
@@ -140,20 +182,26 @@ serve(async (req) => {
         event_type: 'api_call',
         status: 'success',
         message: `${sport} data fetched successfully`,
-        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
+        metadata: { 
+          api: `espn_${sport.toLowerCase().replace(' ', '_')}`,
+          execution_status: executionStatus
+        }
       })
     }
 
     if (logEntries.length > 0) {
-      await supabaseClient
-        .from('logs')
-        .insert(logEntries)
+      try {
+        await supabaseClient
+          .from('logs')
+          .insert(logEntries)
+      } catch (logError) {
+        console.error('Failed to log API calls:', logError)
+      }
     }
 
     // Create US-centric sports content summary
     let content = 'US Sports Update: '
     const sportsEvents = []
-    const sportsHighlights = []
 
     // Process each sport's data
     for (const [sportName, sportData] of Object.entries(sportsData)) {
@@ -181,8 +229,16 @@ serve(async (req) => {
 
     if (sportsEvents.length > 0) {
       content += sportsEvents.join('. ')
+    } else if (Object.keys(sportsErrors).length > 0) {
+      content += 'Sports information temporarily unavailable due to API issues. Please check back later.'
     } else {
       content += 'No major US sports events today'
+    }
+
+    // Determine content block status
+    let finalStatus = ContentBlockStatus.CONTENT_READY
+    if (Object.keys(sportsErrors).length === totalApis && Object.keys(sportsData).length === 0) {
+      finalStatus = ContentBlockStatus.CONTENT_FAILED
     }
 
     // Create content block
@@ -194,9 +250,13 @@ serve(async (req) => {
         sports_data: sportsData,
         sports_errors: sportsErrors,
         sports_events: sportsEvents,
-        us_sports_focus: true
+        us_sports_focus: true,
+        execution_status: executionStatus,
+        api_call_count: apiCallCount,
+        successful_apis: Object.keys(sportsData).length,
+        failed_apis: Object.keys(sportsErrors).length
       },
-      status: Object.keys(sportsErrors).length === Object.keys(sportsData).length ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
+      status: finalStatus,
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -214,23 +274,32 @@ serve(async (req) => {
     validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
     // Log successful content generation
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: 'content_generated',
-        status: 'success',
-        message: 'Sports content generated successfully',
-        content_block_id: data.id,
-        metadata: { content_type: 'sports', date: utcDateStr }
-      })
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generated',
+          status: 'success',
+          message: 'Sports content generated successfully',
+          content_block_id: data.id,
+          metadata: { 
+            content_type: 'sports', 
+            date: utcDateStr,
+            execution_status: executionStatus
+          }
+        })
+    } catch (logError) {
+      console.error('Failed to log successful generation:', logError)
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        content_block_id: data.id,
-        status: data.status,
+        content_block: data,
+        execution_status: executionStatus,
         sports_errors: sportsErrors,
-        sports_data_summary: Object.keys(sportsData)
+        sports_data_summary: Object.keys(sportsData),
+        api_call_count: apiCallCount
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -254,20 +323,28 @@ serve(async (req) => {
           event_type: 'content_generation_failed',
           status: 'error',
           message: `Sports content generation failed: ${error.message}`,
-          metadata: { content_type: 'sports', error: error.toString() }
+          metadata: { 
+            content_type: 'sports', 
+            error: error.toString(),
+            errorType: error.name,
+            stack: error.stack
+          }
         })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'sports'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200 // Always 200 for cron job success
       }
     )
   }

@@ -76,54 +76,80 @@ serve(async (req) => {
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
+    let executionStatus = 'completed'
+    let apiCallCount = 0
+
     // Fetch news from News API
-    let newsApiData = null
-    let newsApiError = null
+    let newsApiData: any = null
+    let newsApiError: string | null = null
     try {
       const newsApiKey = Deno.env.get('NEWS_API_KEY')
       if (newsApiKey) {
+        apiCallCount++
+        console.log(`Making News API call ${apiCallCount}/2`)
+        
         const newsResponse = await fetch(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${newsApiKey}&pageSize=5`, {
           signal: AbortSignal.timeout(10000) // 10 second timeout
         })
         if (newsResponse.ok) {
           newsApiData = await newsResponse.json()
+          console.log('Successfully fetched News API data')
         } else {
           newsApiError = `News API failed: ${newsResponse.status} ${newsResponse.statusText}`
+          console.error('News API failed:', newsResponse.status, newsResponse.statusText)
         }
       } else {
         newsApiError = 'News API key not configured'
+        console.warn('News API key not configured')
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
         newsApiError = 'News API request timed out'
+        console.error('News API timeout error:', error)
       } else {
         newsApiError = `News API error: ${error.message}`
+        console.error('News API error:', error)
       }
     }
 
     // Fetch news from GNews API
-    let gnewsData = null
-    let gnewsError = null
+    let gnewsData: any = null
+    let gnewsError: string | null = null
     try {
       const gnewsApiKey = Deno.env.get('GNEWS_API_KEY')
       if (gnewsApiKey) {
+        apiCallCount++
+        console.log(`Making GNews API call ${apiCallCount}/2`)
+        
         const gnewsResponse = await fetch(`https://gnews.io/api/v4/top-headlines?category=general&country=us&token=${gnewsApiKey}&max=5`, {
           signal: AbortSignal.timeout(10000) // 10 second timeout
         })
         if (gnewsResponse.ok) {
           gnewsData = await gnewsResponse.json()
+          console.log('Successfully fetched GNews API data')
         } else {
           gnewsError = `GNews API failed: ${gnewsResponse.status} ${gnewsResponse.statusText}`
+          console.error('GNews API failed:', gnewsResponse.status, gnewsResponse.statusText)
         }
       } else {
         gnewsError = 'GNews API key not configured'
+        console.warn('GNews API key not configured')
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
         gnewsError = 'GNews API request timed out'
+        console.error('GNews API timeout error:', error)
       } else {
         gnewsError = `GNews API error: ${error.message}`
+        console.error('GNews API error:', error)
       }
+    }
+
+    // Determine execution status based on API results
+    if (newsApiError && gnewsError) {
+      executionStatus = 'completed_with_errors'
+    } else if (newsApiError || gnewsError) {
+      executionStatus = 'completed_with_warnings'
     }
 
     // Log API calls (with error handling)
@@ -135,18 +161,23 @@ serve(async (req) => {
             event_type: 'api_call',
             status: newsApiError ? 'error' : 'success',
             message: newsApiError || 'News API data fetched successfully',
-            metadata: { api: 'news_api' }
+            metadata: { 
+              api: 'news_api',
+              execution_status: executionStatus
+            }
           },
           {
             event_type: 'api_call',
             status: gnewsError ? 'error' : 'success',
             message: gnewsError || 'GNews API data fetched successfully',
-            metadata: { api: 'gnews_api' }
+            metadata: { 
+              api: 'gnews_api',
+              execution_status: executionStatus
+            }
           }
         ])
     } catch (logError) {
-      safeLogError('Failed to log API calls:', logError)
-      // Continue execution even if logging fails
+      console.error('Failed to log API calls:', logError)
     }
 
     // Create content summary
@@ -167,8 +198,16 @@ serve(async (req) => {
 
     if (headlines.length > 0) {
       content += headlines.join('. ')
+    } else if (newsApiError && gnewsError) {
+      content += 'Headlines temporarily unavailable due to API issues. Please check back later.'
     } else {
       content += 'No headlines available'
+    }
+
+    // Determine content block status
+    let finalStatus = ContentBlockStatus.CONTENT_READY
+    if (newsApiError && gnewsError && headlines.length === 0) {
+      finalStatus = ContentBlockStatus.CONTENT_FAILED
     }
 
     // Create content block
@@ -181,9 +220,11 @@ serve(async (req) => {
         gnews_data: gnewsData,
         news_api_error: newsApiError,
         gnews_error: gnewsError,
-        headlines: headlines
+        headlines: headlines,
+        execution_status: executionStatus,
+        api_call_count: apiCallCount
       },
-      status: (newsApiError && gnewsError) ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
+      status: finalStatus,
       content_priority: 3,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -209,19 +250,24 @@ serve(async (req) => {
           status: 'success',
           message: 'Headlines content generated successfully',
           content_block_id: data.id,
-          metadata: { content_type: 'headlines', date: utcDateStr }
+          metadata: { 
+            content_type: 'headlines', 
+            date: utcDateStr,
+            execution_status: executionStatus
+          }
         })
     } catch (logError) {
-      safeLogError('Failed to log successful generation:', logError)
-      // Continue execution even if logging fails
+      console.error('Failed to log successful generation:', logError)
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         content_block: data,
+        execution_status: executionStatus,
         news_api_error: newsApiError,
-        gnews_error: gnewsError
+        gnews_error: gnewsError,
+        api_call_count: apiCallCount
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -230,42 +276,43 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    safeLogError('Error generating headlines content:', error)
+    console.error('Error generating headlines content:', error)
 
     // Log error
     try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
       
-      if (supabaseUrl && supabaseServiceRoleKey) {
-        const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
-        
-        await supabaseClient
-          .from('logs')
-          .insert({
-            event_type: 'content_generation_failed',
-            status: 'error',
-            message: `Headlines content generation failed: ${error.message}`,
-            metadata: { 
-              content_type: 'headlines', 
-              error: error.toString(),
-              stack: error.stack
-            }
-          })
-      }
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generation_failed',
+          status: 'error',
+          message: `Headlines content generation failed: ${error.message}`,
+          metadata: { 
+            content_type: 'headlines', 
+            error: error.toString(),
+            errorType: error.name,
+            stack: error.stack
+          }
+        })
     } catch (logError) {
-      safeLogError('Failed to log error:', logError)
+      console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
-        success: false, 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
         error: error.message,
-        details: error.stack || 'No stack trace available'
+        content_type: 'headlines'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200 // Always 200 for cron job success
       }
     )
   }

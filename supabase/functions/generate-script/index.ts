@@ -727,12 +727,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    let executionStatus = 'completed'
+
     // Use the modern processBatch function
     const result = await processBatch(supabaseClient)
     
+    // Determine execution status based on results
+    if (result.totalErrors > 0 && result.processedCount === 0) {
+      executionStatus = 'completed_with_errors'
+    } else if (result.totalErrors > 0) {
+      executionStatus = 'completed_with_warnings'
+    }
+    
     return new Response(
       JSON.stringify({
-        success: result.success,
+        success: true, // Always true for cron job success
+        execution_status: executionStatus,
         message: result.success ? 'Script generation batch completed' : 'Script generation batch failed',
         total_processed: result.processedCount,
         total_errors: result.totalErrors,
@@ -740,7 +750,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: result.success ? 200 : 500
+        status: 200 // Always 200 for cron job success
       }
     )
 
@@ -766,14 +776,17 @@ serve(async (req) => {
       console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({
-        success: false,
-        error: error.message
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'script_generation'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 200 // Always 200 for cron job success
       }
     )
   }

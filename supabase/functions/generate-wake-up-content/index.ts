@@ -78,6 +78,9 @@ serve(async (req) => {
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
     const yesterdayDate = utcDate(-1)
 
+    let executionStatus = 'completed'
+    let apiCallCount = 0
+
     let previousMessage = ''
     try {
       const { data: previousData } = await supabaseClient
@@ -95,6 +98,7 @@ serve(async (req) => {
       }
     } catch (error) {
       // No previous message found, ignore
+      console.log('No previous wake-up message found')
     }
 
     // Fetch holiday data from Calendarific API
@@ -103,42 +107,78 @@ serve(async (req) => {
     try {
       const calendarificApiKey = Deno.env.get('CALENDARIFIC_API_KEY')
       if (calendarificApiKey) {
+        apiCallCount++
+        console.log('Making Calendarific API call for holiday data')
+        
         const [year, month, day] = tomorrowDate.split('-')
-        const holidayResponse = await fetch(`https://calendarific.com/api/v2/holidays?api_key=${calendarificApiKey}&country=US&year=${year}&month=${parseInt(month)}&day=${parseInt(day)}`)
+        const holidayResponse = await fetch(`https://calendarific.com/api/v2/holidays?api_key=${calendarificApiKey}&country=US&year=${year}&month=${parseInt(month)}&day=${parseInt(day)}`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
+        
         if (holidayResponse.ok) {
           const responseData = await holidayResponse.json()
           if (responseData && responseData.response && Array.isArray(responseData.response.holidays)) {
             holidayData = responseData.response.holidays
+            console.log('Successfully fetched holiday data from Calendarific')
           } else {
             holidayError = 'Malformed Calendarific response'
+            console.error('Malformed Calendarific response:', responseData)
           }
         } else {
           holidayError = `Calendarific API failed: ${holidayResponse.status}`
+          console.error('Calendarific API failed:', holidayResponse.status)
         }
       } else {
         holidayError = 'Calendarific API key not configured'
+        console.warn('Calendarific API key not configured')
       }
     } catch (error) {
       holidayError = `Calendarific API error: ${error.message}`
+      console.error('Calendarific API error:', error)
     }
 
-    await safeLogError(supabaseClient, {
-      event_type: 'api_call',
-      status: holidayError ? 'error' : 'success',
-      message: holidayError || 'Calendarific holiday data fetched successfully',
-      metadata: { api: 'calendarific_holiday', date: tomorrowDate }
-    })
+    // Determine execution status based on API results
+    if (holidayError) {
+      executionStatus = 'completed_with_warnings'
+    }
+
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'api_call',
+          status: holidayError ? 'error' : 'success',
+          message: holidayError || 'Calendarific holiday data fetched successfully',
+          metadata: { 
+            api: 'calendarific_holiday', 
+            date: tomorrowDate,
+            execution_status: executionStatus
+          }
+        })
+    } catch (logError) {
+      console.error('Failed to log API call:', logError)
+    }
+
+    // Create content with fallback for holiday data
+    const holidayInfo = holidayData ? JSON.stringify(holidayData) : 'No holiday data available'
+    const content = `Date: ${tomorrowDate} (${dayOfWeek}). Previous message: ${previousMessage}. Holiday: ${holidayInfo}`
+
+    // Determine content block status
+    let finalStatus = ContentBlockStatus.CONTENT_READY
+    // Always mark as ready since we have fallback content
 
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'wake_up',
       date: tomorrowDate,
-      content: `Date: ${tomorrowDate} (${dayOfWeek}). Previous message: ${previousMessage}. Holiday: ${holidayData ? JSON.stringify(holidayData) : 'No holiday data available'}`,
+      content: content,
       parameters: {
         previous_message: previousMessage,
         holiday_data: holidayData,
-        holiday_error: holidayError
+        holiday_error: holidayError,
+        execution_status: executionStatus,
+        api_call_count: apiCallCount
       },
-      status: ContentBlockStatus.CONTENT_READY,
+      status: finalStatus,
       content_priority: 1,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -155,19 +195,31 @@ serve(async (req) => {
     }
     validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
-    await safeLogError(supabaseClient, {
-      event_type: 'content_generated',
-      status: 'success',
-      message: 'Wake-up content generated successfully',
-      content_block_id: data.id,
-      metadata: { content_type: 'wake_up', date: tomorrowDate }
-    })
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generated',
+          status: 'success',
+          message: 'Wake-up content generated successfully',
+          content_block_id: data.id,
+          metadata: { 
+            content_type: 'wake_up', 
+            date: tomorrowDate,
+            execution_status: executionStatus
+          }
+        })
+    } catch (logError) {
+      console.error('Failed to log successful generation:', logError)
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         content_block: data,
-        holiday_error: holidayError 
+        execution_status: executionStatus,
+        holiday_error: holidayError,
+        api_call_count: apiCallCount
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -177,28 +229,40 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error generating wake-up content:', error)
+    
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
-      await safeLogError(supabaseClient, {
-        event_type: 'content_generation_failed',
-        status: 'error',
-        message: `Wake-up content generation failed: ${error.message}`,
-        metadata: { content_type: 'wake_up', error: error.toString() }
-      })
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generation_failed',
+          status: 'error',
+          message: `Wake-up content generation failed: ${error.message}`,
+          metadata: { 
+            content_type: 'wake_up', 
+            error: error.toString(),
+            errorType: error.name,
+            stack: error.stack
+          }
+        })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
+
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'wake_up'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200 // Always 200 for cron job success
       }
     )
   }

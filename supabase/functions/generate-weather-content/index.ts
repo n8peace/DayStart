@@ -76,106 +76,186 @@ serve(async (req) => {
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
     const todayForLookup = utcDate()
 
-    const { data: weatherData, error: weatherError } = await supabaseClient
-      .from('user_weather_data')
-      .select('*')
-      .eq('date', todayForLookup)
-      .not('expires_at', 'lt', new Date().toISOString())
+    let weatherData: any[] = []
+    let weatherError: string | null = null
+    let executionStatus = 'completed'
 
-    if (weatherError) {
-      throw new Error(`Failed to fetch weather data: ${weatherError.message}`)
-    }
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_weather_data')
+        .select('*')
+        .eq('date', todayForLookup)
+        .not('expires_at', 'lt', new Date().toISOString())
 
-    if (!weatherData || weatherData.length === 0) {
+      if (error) {
+        throw new Error(`Failed to fetch weather data: ${error.message}`)
+      }
+
+      weatherData = data || []
+    } catch (error) {
+      weatherError = `Database error: ${error.message}`
+      executionStatus = 'completed_with_errors'
+      console.error('Error fetching weather data:', error)
+      
       await safeLogError(supabaseClient, {
-        event_type: 'content_generation_failed',
+        event_type: 'database_error',
         status: 'error',
-        message: 'No weather data available for content generation',
-        metadata: { content_type: 'weather', date: utcDateStr }
+        message: `Failed to fetch weather data: ${error.message}`,
+        metadata: { content_type: 'weather', date: utcDateStr, error: error.toString() }
       })
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'No weather data available' 
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400 
-        }
-      )
     }
 
     const results: ContentBlock[] = []
-    for (const weather of weatherData) {
+    let successfulCount = 0
+    let failedCount = 0
+
+    if (weatherData.length === 0) {
+      // Create fallback content when no weather data is available
+      const fallbackContent = 'Weather information is currently unavailable. Please check back later for updated conditions.'
+      const fallbackBlock: Partial<ContentBlock> = {
+        content_type: 'weather',
+        date: utcDateStr,
+        content: fallbackContent,
+        parameters: {
+          fallback_content: true,
+          weather_error: weatherError || 'No weather data available',
+          execution_status: 'completed_with_warnings'
+        },
+        status: ContentBlockStatus.CONTENT_READY, // Still ready since we have fallback content
+        content_priority: 2,
+        expiration_date: expirationDateStr,
+        language_code: 'en-US'
+      }
+
       try {
-        validateObjectShape(weather, ['id', 'location_key', 'date', 'weather_data'])
-        const weatherInfo = weather.weather_data
-        const location = weatherInfo.location || {}
-        const current = weatherInfo.current || {}
-        const forecast = weatherInfo.forecast || {}
-        const city = location.city || 'Unknown'
-        const state = location.state || ''
-        const high = forecast.high || 'N/A'
-        const low = forecast.low || 'N/A'
-        const condition = current.condition || 'Unknown'
-        const sunrise = current.sunrise || 'N/A'
-        const sunset = current.sunset || 'N/A'
-        const content = `Location: ${city}, ${state}. High: ${high}°F, Low: ${low}°F. Condition: ${condition}. Sunrise: ${sunrise}, Sunset: ${sunset}`
-        const contentBlock: Partial<ContentBlock> = {
-          content_type: 'weather',
-          date: utcDateStr,
-          content: content,
-          parameters: {
-            user_weather_data_id: weather.id,
-            location_key: weather.location_key,
-            weather_data: weatherInfo,
-            city: city,
-            state: state,
-            high: high,
-            low: low,
-            condition: condition,
-            sunrise: sunrise,
-            sunset: sunset
-          },
-          status: ContentBlockStatus.CONTENT_READY,
-          content_priority: 2,
-          expiration_date: expirationDateStr,
-          language_code: 'en-US'
-        }
         const { data, error } = await supabaseClient
           .from('content_blocks')
-          .insert(contentBlock)
+          .insert(fallbackBlock)
           .select()
           .single()
+
         if (error) {
           throw error
         }
-        validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
+
         results.push(data)
+        successfulCount++
+
         await safeLogError(supabaseClient, {
           event_type: 'content_generated',
           status: 'success',
-          message: 'Weather content generated successfully',
+          message: 'Weather fallback content generated successfully',
           content_block_id: data.id,
           metadata: { 
             content_type: 'weather', 
             date: utcDateStr,
-            location_key: weather.location_key 
+            fallback_content: true
           }
         })
       } catch (error) {
-        console.error(`Error processing weather data for ${weather.location_key}:`, error)
+        console.error('Error creating fallback weather content:', error)
+        failedCount++
+        
         await safeLogError(supabaseClient, {
           event_type: 'content_generation_failed',
           status: 'error',
-          message: `Weather content generation failed for location ${weather.location_key}: ${error.message}`,
+          message: `Weather fallback content generation failed: ${error.message}`,
           metadata: { 
             content_type: 'weather', 
-            location_key: weather.location_key,
+            date: utcDateStr,
             error: error.toString() 
           }
         })
       }
+    } else {
+      // Process actual weather data
+      for (const weather of weatherData) {
+        try {
+          validateObjectShape(weather, ['id', 'location_key', 'date', 'weather_data'])
+          const weatherInfo = weather.weather_data
+          const location = weatherInfo.location || {}
+          const current = weatherInfo.current || {}
+          const forecast = weatherInfo.forecast || {}
+          const city = location.city || 'Unknown'
+          const state = location.state || ''
+          const high = forecast.high || 'N/A'
+          const low = forecast.low || 'N/A'
+          const condition = current.condition || 'Unknown'
+          const sunrise = current.sunrise || 'N/A'
+          const sunset = current.sunset || 'N/A'
+          const content = `Location: ${city}, ${state}. High: ${high}°F, Low: ${low}°F. Condition: ${condition}. Sunrise: ${sunrise}, Sunset: ${sunset}`
+          
+          const contentBlock: Partial<ContentBlock> = {
+            content_type: 'weather',
+            date: utcDateStr,
+            content: content,
+            parameters: {
+              user_weather_data_id: weather.id,
+              location_key: weather.location_key,
+              weather_data: weatherInfo,
+              city: city,
+              state: state,
+              high: high,
+              low: low,
+              condition: condition,
+              sunrise: sunrise,
+              sunset: sunset,
+              execution_status: executionStatus
+            },
+            status: ContentBlockStatus.CONTENT_READY,
+            content_priority: 2,
+            expiration_date: expirationDateStr,
+            language_code: 'en-US'
+          }
+
+          const { data, error } = await supabaseClient
+            .from('content_blocks')
+            .insert(contentBlock)
+            .select()
+            .single()
+
+          if (error) {
+            throw error
+          }
+
+          validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
+          results.push(data)
+          successfulCount++
+
+          await safeLogError(supabaseClient, {
+            event_type: 'content_generated',
+            status: 'success',
+            message: 'Weather content generated successfully',
+            content_block_id: data.id,
+            metadata: { 
+              content_type: 'weather', 
+              date: utcDateStr,
+              location_key: weather.location_key 
+            }
+          })
+        } catch (error) {
+          console.error(`Error processing weather data for ${weather.location_key}:`, error)
+          failedCount++
+          
+          await safeLogError(supabaseClient, {
+            event_type: 'content_generation_failed',
+            status: 'error',
+            message: `Weather content generation failed for location ${weather.location_key}: ${error.message}`,
+            metadata: { 
+              content_type: 'weather', 
+              location_key: weather.location_key,
+              error: error.toString() 
+            }
+          })
+        }
+      }
+    }
+
+    // Determine final execution status
+    if (failedCount > 0 && successfulCount === 0) {
+      executionStatus = 'completed_with_errors'
+    } else if (failedCount > 0) {
+      executionStatus = 'completed_with_warnings'
     }
 
     return new Response(
@@ -183,7 +263,10 @@ serve(async (req) => {
         success: true, 
         content_blocks: results,
         total_processed: weatherData.length,
-        successful: results.length
+        successful: successfulCount,
+        failed: failedCount,
+        execution_status: executionStatus,
+        weather_error: weatherError
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -193,6 +276,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error generating weather content:', error)
+    
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -207,14 +291,18 @@ serve(async (req) => {
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
+
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'weather'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 200 // Always 200 for cron job success
       }
     )
   }

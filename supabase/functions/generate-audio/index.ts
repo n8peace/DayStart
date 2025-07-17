@@ -575,7 +575,15 @@ serve(async (req) => {
     }
 
     // For non-cron requests, process synchronously (for manual testing)
+    let executionStatus = 'completed'
     const result = await processBatch(supabaseClient)
+
+    // Determine execution status based on results
+    if (result.totalErrors > 0 && result.processedCount === 0) {
+      executionStatus = 'completed_with_errors'
+    } else if (result.totalErrors > 0) {
+      executionStatus = 'completed_with_warnings'
+    }
 
     // Log batch completion
     await safeLogError(supabaseClient, {
@@ -585,20 +593,22 @@ serve(async (req) => {
       metadata: { 
         processed_count: result.processedCount,
         error_count: result.totalErrors,
-        batch_size: BATCH_SIZE
+        batch_size: BATCH_SIZE,
+        execution_status: executionStatus
       }
     })
 
     return new Response(
       JSON.stringify({
-        success: result.success,
+        success: true, // Always true for cron job success
+        execution_status: executionStatus,
         processed_count: result.processedCount,
         error_count: result.totalErrors,
         errors: result.errors
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: result.success ? 200 : 207 // 207 Multi-Status for partial success
+        status: 200 // Always 200 for cron job success
       }
     )
 
@@ -625,14 +635,17 @@ serve(async (req) => {
       console.error('Failed to log error:', logError)
     }
 
+    // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({
-        success: false, 
-        error: error.message 
+        success: true, // Cron job succeeded
+        execution_status: 'failed',
+        error: error.message,
+        content_type: 'audio_generation'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 200 // Always 200 for cron job success
       }
     )
   }
