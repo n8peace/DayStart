@@ -172,11 +172,11 @@ jobs:
               -H "Content-Type: application/json" \
               -v 2>&1)
             
-            # Extract HTTP code using grep with -- to prevent option interpretation
-            http_code=$(echo "$full_response" | grep -- "---HTTP_CODE---" | cut -d'-' -f4)
+            # Extract HTTP code using awk to get value after marker
+            http_code=$(echo "$full_response" | awk -F'---HTTP_CODE---' '{if (NF>1) print $2}' | awk -F'---RESPONSE_TIME---' '{print $1}' | tr -d '\n ')
             
-            # Extract response time using grep with -- to prevent option interpretation
-            response_time=$(echo "$full_response" | grep -- "---RESPONSE_TIME---" | cut -d'-' -f4)
+            # Extract response time using awk to get value after marker
+            response_time=$(echo "$full_response" | awk -F'---RESPONSE_TIME---' '{if (NF>1) print $2}' | tr -d 's\n ')
             
             # Extract response body (everything before the HTTP_CODE marker)
             response_body=$(echo "$full_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
