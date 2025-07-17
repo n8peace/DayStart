@@ -94,12 +94,39 @@ jobs:
         export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
         
         echo "Attempting database migration deployment..."
-        supabase db push --debug || {
-          echo "❌ Database migration failed"
-          echo "🔍 Checking migration status..."
-          supabase migration list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list migrations"
+        
+        # Test database connectivity first
+        echo "🔍 Testing database connectivity before migration..."
+        if ! supabase db ping --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }}; then
+          echo "❌ Database connectivity test failed"
+          echo "🔍 This may be due to network issues or incorrect credentials"
+          echo "🔍 Checking if project is linked correctly..."
+          supabase projects list || echo "Could not list projects"
           exit 1
-        }
+        fi
+        
+        # Attempt migration with retry logic
+        max_retries=3
+        retry_count=0
+        
+        while [ $retry_count -lt $max_retries ]; do
+          echo "🔄 Migration attempt $((retry_count + 1)) of $max_retries..."
+          if supabase db push --debug; then
+            echo "✅ Database migration successful"
+            break
+          else
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+              echo "⚠️ Migration failed, retrying in 10 seconds..."
+              sleep 10
+            else
+              echo "❌ Database migration failed after $max_retries attempts"
+              echo "🔍 Checking migration status..."
+              supabase migration list || echo "Could not list migrations"
+              exit 1
+            fi
+          fi
+        done
         
         echo "✅ Database migrations deployed successfully"
         
@@ -203,7 +230,7 @@ jobs:
         echo "🔍 Verifying function deployment status..."
         
         # Get list of deployed functions
-        deployed_functions=$(supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --json 2>/dev/null | jq -r '.[].name' || echo "")
+        deployed_functions=$(supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} 2>/dev/null | grep -E '^[a-zA-Z0-9-]+' | awk '{print $1}' || echo "")
         
         if [ -z "$deployed_functions" ]; then
           echo "⚠️ No functions found in deployment"

@@ -92,12 +92,5 @@ enable_confirmations = false
 # Template for sending a confirmation message when a user signs up with a phone number.
 template = "Your code is {{ .Code }}"
 
-[edge_runtime]
-# Configure the deno version for edge functions.
-# deno_version = "1.37.2"
-
-# Configure the import map for edge functions.
-# import_map_path = "./supabase/functions/import_map.json"
-
-# Configure the deno flags for edge functions.
-# deno_flags = ["--allow-all", "--no-check"] 
+# Edge runtime configuration removed for compatibility with Supabase CLI 1.145.4
+# This section was causing "Unknown config fields: [edge_runtime]" error 
