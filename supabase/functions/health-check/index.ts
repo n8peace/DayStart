@@ -86,7 +86,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: healthResults.overall_status === 'healthy' ? 200 : 503
+        status: req.method === 'GET' ? 200 : (healthResults.overall_status === 'healthy' ? 200 : 503)
       }
     )
 
