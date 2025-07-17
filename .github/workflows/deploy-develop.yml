@@ -165,16 +165,16 @@ jobs:
         echo "Current directory: $(pwd)"
         echo "Git commit hash: $(git rev-parse HEAD)"
         echo "Git branch: $(git branch --show-current)"
-        
+
         # Check if shared directory exists
         if [ -d "functions/shared" ]; then
           echo "📁 Shared directory contents:"
           ls -la functions/shared/
-          
+
           # Create a temporary function to deploy shared modules
           echo "🔧 Creating temporary shared function for deployment..."
           mkdir -p functions/temp-shared
-          cat > functions/temp-shared/index.ts << 'EOF'
+cat > functions/temp-shared/index.ts << 'EOF'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from '../shared/config.ts';
 import { utcDate } from '../shared/utils.ts';
@@ -196,11 +196,10 @@ serve(async (req) => {
   });
 });
 EOF
-          
+
           echo "🚀 Deploying shared modules via temporary function..."
           if supabase functions deploy temp-shared --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
             echo "✅ Successfully deployed shared modules"
-            
             # Clean up temporary function
             echo "🧹 Cleaning up temporary shared function..."
             supabase functions delete temp-shared --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Temp function cleanup failed"
