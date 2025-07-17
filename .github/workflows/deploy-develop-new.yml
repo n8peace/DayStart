@@ -1,8 +1,9 @@
-name: Deploy to Development (New)
+name: Deploy to Development (New) - DISABLED
 
 on:
-  push:
-    branches: [ develop ]
+  # DISABLED: Using deploy-develop workflow instead
+  # push:
+  #   branches: [ develop ]
   workflow_dispatch:
     inputs:
       force_deploy:
