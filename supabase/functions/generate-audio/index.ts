@@ -208,7 +208,7 @@ async function processContentBlock(
       .from('content_blocks')
       .update({ 
         status: ContentBlockStatus.AUDIO_GENERATING, 
-        updated_at: utcDate(),
+        updated_at: new Date().toISOString(),
         retry_count: contentBlock.retry_count
       })
       .eq('id', contentBlock.id)
@@ -230,7 +230,7 @@ async function processContentBlock(
           audio_url: audioResult.audioUrl,
           duration_seconds: audioResult.duration,
           audio_duration: audioResult.duration,
-          audio_generated_at: utcDate(),
+          audio_generated_at: new Date().toISOString(),
           parameters: {
             ...contentBlock.parameters,
             audio_generated: true,

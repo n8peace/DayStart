@@ -94,13 +94,39 @@ async function checkContentPipeline(supabaseClient: any): Promise<HealthCheckRes
     const totalContent = Object.values(statusDistribution).reduce((a: any, b: any) => a + b, 0)
     const failureRate = totalContent > 0 ? (failureCount / totalContent) * 100 : 0
 
-    // Queue depth alert thresholds
-    const warningThreshold = 20
-    const criticalThreshold = 50
-    const pipelineBlockageThreshold = {
-      script: 100,
-      audio: 20
-    }
+    // Check for old content in queue stages (age-based monitoring)
+    const oneHourAgo = new Date()
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1)
+    
+    const threeHoursAgo = new Date()
+    threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
+
+    // Check for old content_ready items
+    const { data: oldContentReady, error: contentReadyError } = await supabaseClient
+      .from('content_blocks')
+      .select('id, content_type, updated_at')
+      .eq('status', 'content_ready')
+      .lt('updated_at', oneHourAgo.toISOString())
+      .order('updated_at', { ascending: true })
+      .limit(10)
+
+    // Check for script_generated items waiting 1+ hours (warning)
+    const { data: scriptGeneratedWarning, error: scriptGeneratedWarningError } = await supabaseClient
+      .from('content_blocks')
+      .select('id, content_type, script_generated_at')
+      .eq('status', 'script_generated')
+      .lt('script_generated_at', oneHourAgo.toISOString())
+      .order('script_generated_at', { ascending: true })
+      .limit(10)
+
+    // Check for script_generated items waiting 3+ hours (critical)
+    const { data: scriptGeneratedCritical, error: scriptGeneratedCriticalError } = await supabaseClient
+      .from('content_blocks')
+      .select('id, content_type, script_generated_at')
+      .eq('status', 'script_generated')
+      .lt('script_generated_at', threeHoursAgo.toISOString())
+      .order('script_generated_at', { ascending: true })
+      .limit(5)
 
     let status: 'healthy' | 'warning' | 'critical' = 'healthy'
     let message = 'Content pipeline operating normally'
@@ -115,30 +141,26 @@ async function checkContentPipeline(supabaseClient: any): Promise<HealthCheckRes
       },
       stuck_count: stuckCount,
       failure_count: failureCount,
-      failure_rate_percent: failureRate.toFixed(2)
+      failure_rate_percent: failureRate.toFixed(2),
+      old_content_ready_count: oldContentReady?.length || 0,
+      script_generated_warning_count: scriptGeneratedWarning?.length || 0,
+      script_generated_critical_count: scriptGeneratedCritical?.length || 0
     }
 
-    // Check queue depths for warnings
-    if (contentReadyCount > warningThreshold || scriptGeneratedCount > warningThreshold) {
+    // Check for script_generated items waiting 3+ hours (critical - audio generation is severely behind)
+    if (scriptGeneratedCritical && scriptGeneratedCritical.length > 0) {
+      status = 'critical'
+      message = `Critical: ${scriptGeneratedCritical.length} script_generated items waiting for audio generation for over 3 hours`
+    }
+    // Check for script_generated items waiting 1+ hours (warning - audio generation is slow)
+    else if (scriptGeneratedWarning && scriptGeneratedWarning.length > 5) {
       status = 'warning'
-      message = `Queue depth warning: ${contentReadyCount} content_ready, ${scriptGeneratedCount} script_generated`
+      message = `Warning: ${scriptGeneratedWarning.length} script_generated items waiting for audio generation for over 1 hour`
     }
-
-    // Check queue depths for critical alerts
-    if (contentReadyCount > criticalThreshold || scriptGeneratedCount > criticalThreshold) {
-      status = 'critical'
-      message = `Critical queue depth: ${contentReadyCount} content_ready, ${scriptGeneratedCount} script_generated`
-    }
-
-    // Check for pipeline blockage
-    if (scriptGeneratedCount > pipelineBlockageThreshold.script) {
-      status = 'critical'
-      message = `Pipeline blockage detected: ${scriptGeneratedCount} items waiting for audio generation`
-    }
-
-    if (contentReadyCount > pipelineBlockageThreshold.script) {
-      status = 'critical'
-      message = `Pipeline blockage detected: ${contentReadyCount} items waiting for script generation`
+    // Check for old content_ready items (warning - script generation is slow)
+    else if (oldContentReady && oldContentReady.length > 5) {
+      status = 'warning'
+      message = `Warning: ${oldContentReady.length} content_ready items waiting for script generation for over 1 hour`
     }
 
     // Check for stuck content

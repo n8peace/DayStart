@@ -119,7 +119,7 @@ async function cleanupStuckContentBlocks(
         .from('content_blocks')
         .update({
           status: failureStatus,
-          updated_at: utcDate(),
+          updated_at: new Date().toISOString(),
           retry_count: 0 // Reset retry count since we're giving up
         })
         .in('id', blockIds)
