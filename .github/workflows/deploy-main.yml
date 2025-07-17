@@ -109,14 +109,51 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Deploying edge functions to production..."
+        echo "🚀 Deploying edge functions to production..."
         echo "Current directory: $(pwd)"
+        echo "Git commit hash: $(git rev-parse HEAD)"
+        echo "Git branch: $(git branch --show-current)"
         echo "Functions directory contents:"
         ls -la functions/ || echo "Functions directory not found"
+        
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          echo "Found functions, deploying..."
-          supabase functions deploy
+          echo "Found functions, deploying individually..."
+          
+          # Deploy each function individually
+          for func_dir in functions/*/; do
+            if [ -d "$func_dir" ]; then
+              func_name=$(basename "$func_dir")
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
+              fi
+              echo "🚀 Deploying function: $func_name"
+              echo "📁 Function directory: $func_dir"
+              echo "📄 Function files:"
+              ls -la "$func_dir"
+              
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Function not found or already deleted"
+              
+              # Deploy with verbose output
+              echo "🚀 Deploying fresh copy of function: $func_name"
+              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} --debug || {
+                echo "❌ Failed to deploy function: $func_name"
+                echo "🔍 Checking function status..."
+                supabase functions list --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Could not list functions"
+                exit 1
+              }
+              echo "✅ Successfully deployed function: $func_name"
+            fi
+          done
+          
+          echo "✅ All function deployments completed"
+          
+          # List deployed functions
+          echo "📋 Deployed functions:"
+          supabase functions list --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
         fi
@@ -132,10 +169,14 @@ jobs:
           # Create a temporary file to store function names
           temp_file=$(mktemp)
           
-          # Collect all function names
+          # Collect all function names (skip shared directory)
           for func_dir in supabase/functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
+              fi
               echo "$func_name" >> "$temp_file"
             fi
           done
