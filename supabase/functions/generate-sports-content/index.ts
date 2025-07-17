@@ -226,7 +226,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        content_block: data,
+        content_block_id: data.id,
+        status: data.status,
         sports_errors: sportsErrors,
         sports_data_summary: Object.keys(sportsData)
       }),

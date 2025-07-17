@@ -223,14 +223,22 @@ async function processContentBlock(
     const audioResult = await generateAudioForContentBlock(supabaseClient, contentBlock)
 
     if (audioResult.success && audioResult.audioUrl) { // Update content block with audio URL
+      // Ensure audio_generated_at >= script_generated_at
+      const now = new Date();
+      const scriptGeneratedAt = new Date(contentBlock.script_generated_at || now);
+      let audioGeneratedAt = now;
+      if (now < scriptGeneratedAt) {
+        // If system clock is behind, set audio_generated_at to script_generated_at + 1s
+        audioGeneratedAt = new Date(scriptGeneratedAt.getTime() + 1000);
+      }
       const { data: updatedBlock, error: updateError } = await supabaseClient
         .from('content_blocks')
         .update({
-                     status: ContentBlockStatus.READY,
+          status: ContentBlockStatus.READY,
           audio_url: audioResult.audioUrl,
           duration_seconds: audioResult.duration,
           audio_duration: audioResult.duration,
-          audio_generated_at: new Date().toISOString(),
+          audio_generated_at: audioGeneratedAt.toISOString(),
           parameters: {
             ...contentBlock.parameters,
             audio_generated: true,
