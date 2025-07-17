@@ -174,28 +174,28 @@ jobs:
           # Create a temporary function to deploy shared modules
           echo "🔧 Creating temporary shared function for deployment..."
           mkdir -p functions/temp-shared
-cat > functions/temp-shared/index.ts << 'EOF'
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from '../shared/config.ts';
-import { utcDate } from '../shared/utils.ts';
-import { validateEnvVars } from '../shared/validation.ts';
-import { ContentBlockStatus } from '../shared/status.ts';
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  return new Response(JSON.stringify({
-    status: 'shared_modules_loaded',
-    timestamp: new Date().toISOString(),
-    modules: ['config', 'utils', 'validation', 'status', 'types']
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    status: 200
-  });
-});
-EOF
+          
+          # Create the temp function file using echo (no heredoc)
+          echo 'import { serve } from "https://deno.land/std@0.168.0/http/server.ts";' > functions/temp-shared/index.ts
+          echo 'import { corsHeaders } from "../shared/config.ts";' >> functions/temp-shared/index.ts
+          echo 'import { utcDate } from "../shared/utils.ts";' >> functions/temp-shared/index.ts
+          echo 'import { validateEnvVars } from "../shared/validation.ts";' >> functions/temp-shared/index.ts
+          echo 'import { ContentBlockStatus } from "../shared/status.ts";' >> functions/temp-shared/index.ts
+          echo '' >> functions/temp-shared/index.ts
+          echo 'serve(async (req) => {' >> functions/temp-shared/index.ts
+          echo '  if (req.method === "OPTIONS") {' >> functions/temp-shared/index.ts
+          echo '    return new Response("ok", { headers: corsHeaders });' >> functions/temp-shared/index.ts
+          echo '  }' >> functions/temp-shared/index.ts
+          echo '' >> functions/temp-shared/index.ts
+          echo '  return new Response(JSON.stringify({' >> functions/temp-shared/index.ts
+          echo '    status: "shared_modules_loaded",' >> functions/temp-shared/index.ts
+          echo '    timestamp: new Date().toISOString(),' >> functions/temp-shared/index.ts
+          echo '    modules: ["config", "utils", "validation", "status", "types"]' >> functions/temp-shared/index.ts
+          echo '  }), {' >> functions/temp-shared/index.ts
+          echo '    headers: { ...corsHeaders, "Content-Type": "application/json" },' >> functions/temp-shared/index.ts
+          echo '    status: 200' >> functions/temp-shared/index.ts
+          echo '  });' >> functions/temp-shared/index.ts
+          echo '});' >> functions/temp-shared/index.ts
 
           echo "🚀 Deploying shared modules via temporary function..."
           if supabase functions deploy temp-shared --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug; then
