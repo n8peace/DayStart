@@ -172,11 +172,11 @@ jobs:
               -H "Content-Type: application/json" \
               -v 2>&1)
             
-            # Extract HTTP code
-            http_code=$(echo "$full_response" | grep "---HTTP_CODE---" | cut -d'-' -f4)
+            # Extract HTTP code using grep with -- to prevent option interpretation
+            http_code=$(echo "$full_response" | grep -- "---HTTP_CODE---" | cut -d'-' -f4)
             
-            # Extract response time
-            response_time=$(echo "$full_response" | grep "---RESPONSE_TIME---" | cut -d'-' -f4)
+            # Extract response time using grep with -- to prevent option interpretation
+            response_time=$(echo "$full_response" | grep -- "---RESPONSE_TIME---" | cut -d'-' -f4)
             
             # Extract response body (everything before the HTTP_CODE marker)
             response_body=$(echo "$full_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
@@ -262,8 +262,8 @@ jobs:
           -H "Content-Type: application/json" \
           -v 2>&1)
         
-        db_http_code=$(echo "$db_response" | grep "---HTTP_CODE---" | cut -d'-' -f4)
-        db_response_time=$(echo "$db_response" | grep "---RESPONSE_TIME---" | cut -d'-' -f4)
+        db_http_code=$(echo "$db_response" | grep -- "---HTTP_CODE---" | cut -d'-' -f4)
+        db_response_time=$(echo "$db_response" | grep -- "---RESPONSE_TIME---" | cut -d'-' -f4)
         db_response_body=$(echo "$db_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
         
         echo "  ⏱️ Response time: ${db_response_time}s"

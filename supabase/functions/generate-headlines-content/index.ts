@@ -11,6 +11,52 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Handle health check requests
+  const url = new URL(req.url)
+  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
+    try {
+      const response = {
+        status: 'healthy',
+        function: 'generate-headlines-content',
+        timestamp: new Date().toISOString()
+      }
+      return new Response(
+        JSON.stringify(response),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    } catch (healthError) {
+      return new Response(
+        JSON.stringify({
+          status: 'error',
+          function: 'generate-headlines-content',
+          error: healthError.message,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
+  }
+
+  // Validate HTTP method for non-health check requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: `Method ${req.method} not allowed. Use POST.` 
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 405
+      }
+    )
+  }
+
   // Validate required environment variables
   validateEnvVars([
     'SUPABASE_URL',
