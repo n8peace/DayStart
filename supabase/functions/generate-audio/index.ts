@@ -332,12 +332,17 @@ async function processContentBlock(
 
   } catch (error) {
     console.error(`Error processing content block ${contentBlock.id}:`, error)
+    console.error(`  - Error type: ${error.name}`)
+    console.error(`  - Error code: ${error.code}`)
+    console.error(`  - Error message: ${error.message}`)
+    console.error(`  - Error details: ${error.details}`)
     errors.push(`Content block ${contentBlock.id}: ${error.message}`)
 
     // Update status to audio_failed to prevent stuck content blocks
     // Remove status condition to ensure we always mark as failed regardless of current state
+    console.log(`🔄 Attempting to mark ${contentBlock.id} as audio_failed...`)
     try {
-      await supabaseClient
+      const { data: failedUpdate, error: updateError } = await supabaseClient
         .from('content_blocks')
         .update({
           status: ContentBlockStatus.AUDIO_FAILED,
@@ -349,9 +354,24 @@ async function processContentBlock(
           }
         })
         .eq('id', contentBlock.id)
+        .select()
+        .single()
         // Removed status condition to ensure we always update to failed state
+
+      if (updateError) {
+        console.error(`❌ Failed to update status to audio_failed for ${contentBlock.id}:`, updateError)
+        console.error(`  - Update error code: ${updateError.code}`)
+        console.error(`  - Update error message: ${updateError.message}`)
+        console.error(`  - Update error details: ${updateError.details}`)
+      } else {
+        console.log(`✅ Successfully marked ${contentBlock.id} as audio_failed`)
+        console.log(`  - New status: ${failedUpdate.status}`)
+        console.log(`  - Updated at: ${failedUpdate.updated_at}`)
+      }
     } catch (updateError) {
-      console.error(`Failed to update status to audio_failed for ${contentBlock.id}:`, updateError)
+      console.error(`❌ Exception during audio_failed update for ${contentBlock.id}:`, updateError)
+      console.error(`  - Exception type: ${updateError.name}`)
+      console.error(`  - Exception message: ${updateError.message}`)
       // Continue with logging even if status update fails
     }
 
