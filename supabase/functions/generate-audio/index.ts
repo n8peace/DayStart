@@ -228,7 +228,9 @@ async function processContentBlock(
         .update({
                      status: ContentBlockStatus.READY,
           audio_url: audioResult.audioUrl,
+          duration_seconds: audioResult.duration,
           audio_duration: audioResult.duration,
+          audio_generated_at: utcDate(),
           parameters: {
             ...contentBlock.parameters,
             audio_generated: true,

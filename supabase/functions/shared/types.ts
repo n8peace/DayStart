@@ -11,6 +11,7 @@ export interface ContentBlock {
   status: string;
   voice?: string;
   duration_seconds?: number;
+  audio_duration?: number;
   retry_count: number;
   content_priority: number;
   expiration_date: string;

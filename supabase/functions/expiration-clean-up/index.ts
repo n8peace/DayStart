@@ -185,7 +185,7 @@ async function processExpiredContentBlocks(supabaseClient: any): Promise<Cleanup
       const { data: contentBlocks, error: queryError } = await supabaseClient
         .from('content_blocks')
         .select('*')
-        .lt('expiration_date', utcDate(new Date()).split('T')[0]) // Less than today
+        .lt('expiration_date', utcDate().split('T')[0]) // Less than today
         .not('audio_url', 'is', null) // Has audio URL
         .neq('status', 'expired') // Not already marked as expired
         .order('expiration_date', { ascending: true })
@@ -326,7 +326,7 @@ serve(async (req) => {
     const { data: expiredBlocks, error: fetchError } = await supabaseClient
       .from('content_blocks')
       .select('*')
-      .lt('expiration_date', currentDate)
+      .lt('expiration_date', currentDate.split('T')[0])
       .neq('status', 'expired')
       .order('expiration_date', { ascending: true })
 
