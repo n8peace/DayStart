@@ -253,7 +253,7 @@ async function processContentBlock(
       if (updateError) {
         throw updateError
       }
-      validateObjectShape(updatedBlock, 'id', 'audio_url', 'status')
+      validateObjectShape(updatedBlock, ['id', 'audio_url', 'status'])
 
       processedCount = 1
 
