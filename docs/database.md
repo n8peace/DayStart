@@ -220,14 +220,14 @@ audio-files/
 └── user_reminders/
 ```
 
-**File Naming**: `{content_type}/{content_block_id}_{voice}_{timestamp}.mp3`
+**File Naming**: `{content_type}/{content_block_id}_{voice}_{timestamp}.aac`
 
 **Configuration**:
 - Public read access for all audio files
 - Authenticated user upload permissions
 - Service role full access for background jobs
 - 10MB file size limit
-- Supported formats: audio/mpeg, audio/mp3, audio/wav, audio/ogg
+- Supported formats: audio/mpeg, audio/mp3, audio/wav, audio/ogg, audio/aac
 
 **RLS Policies**:
 - Public read access to all audio files
@@ -383,6 +383,7 @@ CREATE POLICY "Service role has full access" ON logs
 - ✅ Create `logs` table
 - ✅ Create `user_weather_data` table
 - ✅ Apply comprehensive RLS policies
+- ✅ Add AAC audio format support to audio-files storage bucket
 
 ## 🔍 Monitoring & Maintenance
 
