@@ -267,7 +267,6 @@ async function processContentBlock(
           }
         })
         .eq('id', contentBlock.id)
-        .eq('status', ContentBlockStatus.AUDIO_GENERATING) // Optimistic locking
         .select()
         .single()
 
