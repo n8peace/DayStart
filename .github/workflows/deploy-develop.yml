@@ -116,13 +116,23 @@ jobs:
         echo "🔍 Checking generate-script function source:"
         if [ -f "functions/generate-script/index.ts" ]; then
           echo "✅ generate-script/index.ts exists"
+          echo "📄 File size: $(wc -l < functions/generate-script/index.ts) lines"
           echo "📄 First 10 lines of generate-script/index.ts:"
           head -10 functions/generate-script/index.ts
           echo "📄 Last 10 lines of generate-script/index.ts:"
           tail -10 functions/generate-script/index.ts
+          echo "📄 Checking for TypeScript imports:"
+          grep -n "import.*shared" functions/generate-script/index.ts || echo "No shared imports found"
+          echo "📄 Checking for processBatch function:"
+          grep -n "processBatch" functions/generate-script/index.ts || echo "No processBatch found"
         else
           echo "❌ generate-script/index.ts not found"
         fi
+        
+        # Check if there are multiple versions of the file
+        echo "🔍 Checking for duplicate files:"
+        find . -name "generate-script" -type d 2>/dev/null || echo "No duplicate directories found"
+        find . -name "index.ts" -path "*/generate-script/*" 2>/dev/null || echo "No duplicate index.ts found"
         
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
@@ -141,7 +151,12 @@ jobs:
               echo "📄 Function files:"
               ls -la "$func_dir"
               
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
+              
               # Deploy with verbose output
+              echo "🚀 Deploying fresh copy of function: $func_name"
               supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug || {
                 echo "❌ Failed to deploy function: $func_name"
                 echo "🔍 Checking function status..."
