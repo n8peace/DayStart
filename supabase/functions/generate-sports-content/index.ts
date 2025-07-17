@@ -1,29 +1,67 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Handle health check requests
+  const url = new URL(req.url)
+  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
+    try {
+      const response = {
+        status: 'healthy',
+        function: 'generate-sports-content',
+        timestamp: new Date().toISOString()
+      }
+      return new Response(
+        JSON.stringify(response),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    } catch (healthError) {
+      return new Response(
+        JSON.stringify({
+          status: 'error',
+          function: 'generate-sports-content',
+          error: healthError.message,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
+  }
+
+  // Validate HTTP method for non-health check requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: `Method ${req.method} not allowed. Use POST.` 
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 405
+      }
+    )
+  }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
 
   try {
     const supabaseClient = createClient(
@@ -31,103 +69,133 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get UTC date for sports content
-    const utcDate = new Date().toISOString().split('T')[0]
-
-    // Get expiration date (72 hours from now) in UTC
-    const expirationDate = new Date()
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    // Get today's date for sports data lookup
+    // Fetch US sports data from multiple ESPN APIs
+    const usSports = [
+      { sport: 'football', league: 'nfl', name: 'NFL' },
+      { sport: 'basketball', league: 'nba', name: 'NBA' },
+      { sport: 'baseball', league: 'mlb', name: 'MLB' },
+      { sport: 'hockey', league: 'nhl', name: 'NHL' }
+    ]
 
-    // Fetch sports data from SportsDB API for today's events
-    let sportsDbData = null
-    let sportsDbError = null
-    try {
-      const sportsDbApiKey = Deno.env.get('SPORTSDB_API_KEY') || '123' // Use free key if not configured
-              const sportsDbResponse = await fetch(`https://www.thesportsdb.com/api/v1/json/${sportsDbApiKey}/eventsday.php?d=${utcDate}`)
-      if (sportsDbResponse.ok) {
-        sportsDbData = await sportsDbResponse.json()
-      } else {
-        sportsDbError = `SportsDB API failed: ${sportsDbResponse.status}`
+    const sportsData = {}
+    const sportsErrors = {}
+
+    // Fetch data for each major US sport
+    for (const sport of usSports) {
+      try {
+        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.sport}/${sport.league}/scoreboard`)
+        if (response.ok) {
+          sportsData[sport.name] = await response.json()
+        } else {
+          sportsErrors[sport.name] = `ESPN ${sport.name} API failed: ${response.status}`
+        }
+      } catch (error) {
+        sportsErrors[sport.name] = `ESPN ${sport.name} API error: ${error.message}`
       }
-    } catch (error) {
-      sportsDbError = `SportsDB API error: ${error.message}`
     }
 
-    // Fetch sports data from ESPN API
-    let espnData = null
-    let espnError = null
+    // Fetch NCAA Football and Basketball data
     try {
-      const espnResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
-      if (espnResponse.ok) {
-        espnData = await espnResponse.json()
+      const ncaaFootballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard')
+      if (ncaaFootballResponse.ok) {
+        sportsData['NCAA Football'] = await ncaaFootballResponse.json()
       } else {
-        espnError = `ESPN API failed: ${espnResponse.status}`
+        sportsErrors['NCAA Football'] = `ESPN NCAA Football API failed: ${ncaaFootballResponse.status}`
       }
     } catch (error) {
-      espnError = `ESPN API error: ${error.message}`
+      sportsErrors['NCAA Football'] = `ESPN NCAA Football API error: ${error.message}`
+    }
+
+    try {
+      const ncaaBasketballResponse = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard')
+      if (ncaaBasketballResponse.ok) {
+        sportsData['NCAA Basketball'] = await ncaaBasketballResponse.json()
+      } else {
+        sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API failed: ${ncaaBasketballResponse.status}`
+      }
+    } catch (error) {
+      sportsErrors['NCAA Basketball'] = `ESPN NCAA Basketball API error: ${error.message}`
     }
 
     // Log API calls
-    await supabaseClient
-      .from('logs')
-      .insert([
-        {
-          event_type: 'api_call',
-          status: sportsDbError ? 'error' : 'success',
-          message: sportsDbError || 'SportsDB API data fetched successfully',
-          metadata: { api: 'sportsdb_api' }
-        },
-        {
-          event_type: 'api_call',
-          status: espnError ? 'error' : 'success',
-          message: espnError || 'ESPN API data fetched successfully',
-          metadata: { api: 'espn_api' }
-        }
-      ])
-
-    // Create content summary
-    let content = 'Sports Update: '
-    const sportsEvents = []
-
-    if (sportsDbData?.events) {
-      sportsDbData.events.slice(0, 3).forEach((event: any) => {
-        sportsEvents.push(`${event.strEvent} on ${event.dateEvent}`)
+    const logEntries = []
+    for (const [sport, error] of Object.entries(sportsErrors)) {
+      logEntries.push({
+        event_type: 'api_call',
+        status: 'error',
+        message: error,
+        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
+      })
+    }
+    
+    // Add success logs for sports with data
+    for (const sport of Object.keys(sportsData)) {
+      logEntries.push({
+        event_type: 'api_call',
+        status: 'success',
+        message: `${sport} data fetched successfully`,
+        metadata: { api: `espn_${sport.toLowerCase().replace(' ', '_')}` }
       })
     }
 
-    if (espnData?.events) {
-      espnData.events.slice(0, 2).forEach((event: any) => {
-        const homeTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.team?.name
-        const awayTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.team?.name
-        const date = event.date
-        if (homeTeam && awayTeam) {
-          sportsEvents.push(`${awayTeam} vs ${homeTeam} on ${date}`)
-        }
-      })
+    if (logEntries.length > 0) {
+      await supabaseClient
+        .from('logs')
+        .insert(logEntries)
+    }
+
+    // Create US-centric sports content summary
+    let content = 'US Sports Update: '
+    const sportsEvents = []
+    const sportsHighlights = []
+
+    // Process each sport's data
+    for (const [sportName, sportData] of Object.entries(sportsData)) {
+      if (sportData?.events) {
+        // Get today's games
+        const todayGames = sportData.events.slice(0, 3)
+        
+        todayGames.forEach((event: any) => {
+          const homeTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.team?.name
+          const awayTeam = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.team?.name
+          const homeScore = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'home')?.score
+          const awayScore = event.competitions?.[0]?.competitors?.find((c: any) => c.homeAway === 'away')?.score
+          const status = event.status?.type?.name
+          
+          if (homeTeam && awayTeam) {
+            if (status === 'STATUS_FINAL' && homeScore && awayScore) {
+              sportsEvents.push(`${sportName}: ${awayTeam} ${awayScore} - ${homeTeam} ${homeScore}`)
+            } else {
+              sportsEvents.push(`${sportName}: ${awayTeam} at ${homeTeam}`)
+            }
+          }
+        })
+      }
     }
 
     if (sportsEvents.length > 0) {
       content += sportsEvents.join('. ')
     } else {
-      content += 'No sports events available'
+      content += 'No major US sports events today'
     }
 
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'sports',
-      date: utcDate,
+      date: utcDateStr,
       content: content,
       parameters: {
-        sportsdb_data: sportsDbData,
-        espn_data: espnData,
-        sportsdb_error: sportsDbError,
-        espn_error: espnError,
-        sports_events: sportsEvents
+        sports_data: sportsData,
+        sports_errors: sportsErrors,
+        sports_events: sportsEvents,
+        us_sports_focus: true
       },
-      status: (sportsDbError && espnError) ? 'content_failed' : 'content_ready',
+      status: Object.keys(sportsErrors).length === Object.keys(sportsData).length ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -142,6 +210,7 @@ serve(async (req) => {
     if (error) {
       throw error
     }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
     // Log successful content generation
     await supabaseClient
@@ -151,15 +220,15 @@ serve(async (req) => {
         status: 'success',
         message: 'Sports content generated successfully',
         content_block_id: data.id,
-        metadata: { content_type: 'sports', date: utcDate }
+        metadata: { content_type: 'sports', date: utcDateStr }
       })
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         content_block: data,
-        sportsdb_error: sportsDbError,
-        espn_error: espnError
+        sports_errors: sportsErrors,
+        sports_data_summary: Object.keys(sportsData)
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

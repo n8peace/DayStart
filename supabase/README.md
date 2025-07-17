@@ -1,4 +1,0 @@
-# Test deployment trigger - Mon Jul 14 15:53:13 PDT 2025
-# Test deployment with new pooler URL - Mon Jul 14 16:03:23 PDT 2025
-# Test deployment with connection pooling - Mon Jul 14 16:06:42 PDT 2025
-# Test deployment with updated connection pooling URL - Mon Jul 14 16:10:48 PDT 2025

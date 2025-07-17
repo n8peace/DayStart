@@ -1,18 +1,45 @@
 {
-  "name": "daystart",
+  "name": "start",
   "version": "1.0.0",
-  "description": "AI-powered alarm clock with personalized morning messages",
+  "description": "AI-powered alarm clock with personalized morning messages using GPT-4 and ElevenLabs",
   "private": true,
+  "author": "DayStart Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/daystart.git"
+  },
+  "keywords": [
+    "ai",
+    "alarm-clock",
+    "gpt-4",
+    "elevenlabs",
+    "supabase",
+    "swiftui",
+    "ios"
+  ],
   "scripts": {
     "test": "echo \"No tests specified\" && exit 0",
     "build": "echo \"Build complete\"",
     "deploy:develop": "cd supabase && supabase db push",
-    "deploy:production": "cd supabase && supabase db push"
+    "deploy:production": "cd supabase && supabase db push",
+    "dev:supabase": "cd supabase && supabase start",
+    "dev:stop": "cd supabase && supabase stop",
+    "db:reset": "cd supabase && supabase db reset",
+    "db:diff": "cd supabase && supabase db diff",
+    "functions:deploy": "cd supabase && supabase functions deploy",
+    "functions:deploy:all": "cd supabase && supabase functions deploy --no-verify-jwt",
+    "lint": "echo \"Linting not configured\" && exit 0",
+    "format": "echo \"Formatting not configured\" && exit 0",
+    "clean": "echo \"Clean complete\" && exit 0"
   },
   "devDependencies": {
-    "supabase": "^1.0.0"
+    "supabase": "^10"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "volta": {
+    "node": "18.0.0"
   }
 } 

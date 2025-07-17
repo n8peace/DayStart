@@ -13,9 +13,10 @@ DayStart transforms the morning routine by combining:
 ## 🧱 Tech Stack
 
 - **Frontend**: SwiftUI iOS app
-- **Backend**: Supabase (PostgreSQL + Edge Functions)
+- **Backend**: Supabase (PostgreSQL + Edge Functions + Storage)
 - **AI**: GPT-4o for morning script generation
-- **Voice**: ElevenLabs for voice synthesis
+- **Voice**: ElevenLabs Multilingual v2 for high-quality voice synthesis
+- **Storage**: Supabase Storage for audio file management
 - **CI/CD**: GitHub Actions, with `develop` and `main` branch strategy
 
 ## 📁 Project Structure
@@ -23,7 +24,8 @@ DayStart transforms the morning routine by combining:
 ```
 DayStart/
 ├── supabase/          # Supabase project files
-│   ├── migrations/    # Database migrations (5 tables deployed)
+│   ├── migrations/    # Database migrations (5 tables + storage bucket)
+│   ├── functions/     # 7 content generation functions (6 deployed to production)
 │   └── config.toml    # Supabase configuration
 ├── docs/              # Project documentation
 ├── .github/           # GitHub Actions workflows
@@ -51,11 +53,11 @@ DayStart/
    # Edit .env with your API keys
    ```
 
-2. **iOS App Setup** (Early Development)
+2. **iOS App Setup** (Ready for Development)
    ```bash
-   # iOS app development is in early planning phase
-   # Backend infrastructure is being established first
-   # iOS app development will begin after backend is complete
+   # Backend infrastructure is complete and deployed to production
+   # Content generation system is fully operational
+   # iOS app development can now begin
    # cd ios-app
    # Open DayStart.xcodeproj in Xcode
    # Configure signing and capabilities
@@ -165,3 +167,4 @@ For support and questions:
 - Check the [documentation](docs/)
 - Review [troubleshooting guide](docs/troubleshooting.md)
 - Check [development guide](docs/development.md) for workflow questions 
+# Trigger function deployment - Wed Jul 16 21:23:50 PDT 2025

@@ -109,14 +109,51 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Deploying edge functions to production..."
+        echo "🚀 Deploying edge functions to production..."
         echo "Current directory: $(pwd)"
+        echo "Git commit hash: $(git rev-parse HEAD)"
+        echo "Git branch: $(git branch --show-current)"
         echo "Functions directory contents:"
         ls -la functions/ || echo "Functions directory not found"
+        
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          echo "Found functions, deploying..."
-          supabase functions deploy
+          echo "Found functions, deploying individually..."
+          
+          # Deploy each function individually
+          for func_dir in functions/*/; do
+            if [ -d "$func_dir" ]; then
+              func_name=$(basename "$func_dir")
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
+              fi
+              echo "🚀 Deploying function: $func_name"
+              echo "📁 Function directory: $func_dir"
+              echo "📄 Function files:"
+              ls -la "$func_dir"
+              
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Function not found or already deleted"
+              
+              # Deploy with verbose output
+              echo "🚀 Deploying fresh copy of function: $func_name"
+              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} --debug || {
+                echo "❌ Failed to deploy function: $func_name"
+                echo "🔍 Checking function status..."
+                supabase functions list --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Could not list functions"
+                exit 1
+              }
+              echo "✅ Successfully deployed function: $func_name"
+            fi
+          done
+          
+          echo "✅ All function deployments completed"
+          
+          # List deployed functions
+          echo "📋 Deployed functions:"
+          supabase functions list --project-ref ${{ secrets.SUPABASE_MAIN_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
         fi
@@ -124,28 +161,85 @@ jobs:
     - name: Run health checks
       run: |
         echo "🏥 Running health checks..."
+        
         # Check if any functions exist before testing them
         if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
-          echo "Testing edge functions..."
-          # List available functions for testing
+          echo "Testing edge functions in parallel..."
+          
+          # Create a temporary file to store function names
+          temp_file=$(mktemp)
+          
+          # Collect all function names (skip shared directory)
           for func_dir in supabase/functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
-              echo "Testing $func_name function..."
-              response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
-                -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
-              
-              http_code=$(echo "$response" | tail -n1)
-              if [ "$http_code" = "200" ]; then
-                echo "✅ $func_name function is healthy"
-              elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
-                echo "✅ $func_name function is healthy (no weather data available - expected)"
-              else
-                echo "❌ $func_name function health check failed (HTTP $http_code)"
-                exit 1
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
               fi
+              echo "$func_name" >> "$temp_file"
             fi
           done
+          
+          # Function to test a single function
+          test_function() {
+            local func_name=$1
+            echo "Testing $func_name function..."
+            
+            # Add timeout to curl to prevent hanging
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+            
+            http_code=$(echo "$response" | tail -n1)
+            if [ "$http_code" = "200" ]; then
+              echo "✅ $func_name function is healthy"
+              return 0
+            elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
+              echo "✅ $func_name function is healthy (no weather data available - expected)"
+              return 0
+            else
+              echo "❌ $func_name function health check failed (HTTP $http_code)"
+              return 1
+            fi
+          }
+          
+          # Export the function and variables for parallel execution
+          export -f test_function
+          export SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+          export SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          
+          # Run health checks in parallel with a maximum of 5 concurrent jobs
+          if command -v parallel >/dev/null 2>&1; then
+            # Use GNU parallel if available
+            parallel -j 5 test_function ::: $(cat "$temp_file")
+            parallel_status=$?
+          else
+            # Fallback to background jobs with wait
+            pids=()
+            while IFS= read -r func_name; do
+              test_function "$func_name" &
+              pids+=($!)
+            done < "$temp_file"
+            
+            # Wait for all background jobs to complete
+            parallel_status=0
+            for pid in "${pids[@]}"; do
+              if ! wait "$pid"; then
+                parallel_status=1
+              fi
+            done
+          fi
+          
+          # Clean up
+          rm -f "$temp_file"
+          
+          # Exit with the status from parallel execution
+          if [ $parallel_status -ne 0 ]; then
+            echo "❌ One or more health checks failed"
+            exit 1
+          fi
+          
+          echo "✅ All function health checks completed"
         else
           echo "⚠️ No functions to test - functions directory is empty"
         fi

@@ -106,6 +106,13 @@ CREATE TABLE users (
 - Include error handling
 - Add input validation
 - Document function purpose
+- Respect external API concurrency limits
+
+**Concurrency Considerations:**
+- **ElevenLabs API**: 5 concurrent requests maximum
+- **OpenAI API**: Varies by tier, typically 3-10 concurrent requests
+- **Batch processing**: Adjust batch sizes to match API limits
+- **Sequential processing**: Process items sequentially within batches to avoid rate limiting
 
 **Example:**
 ```typescript
@@ -174,6 +181,11 @@ curl -X POST http://localhost:54321/functions/v1/example-function \
 DayStart/
 ├── supabase/              # Backend configuration
 │   ├── functions/         # Edge functions
+│   │   ├── generate-script/      # Script generation
+│   │   ├── generate-audio/       # Audio generation
+│   │   ├── expiration-clean-up/  # Cleanup expired content
+│   │   ├── generate-*-content/   # Content generation functions
+│   │   └── ...
 │   ├── migrations/        # Database migrations
 │   └── config.toml        # Supabase configuration
 ├── docs/                  # Documentation

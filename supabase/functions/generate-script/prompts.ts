@@ -14,11 +14,11 @@ export interface ContentPrompt {
 
 // Voice-specific instructions - centralized for easy editing
 const VOICE_INSTRUCTIONS = {
-  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
+  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Insert [pause 3s] or [take a breath] where appropriate for a meditative experience. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
 
-  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
+  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Insert [pause 1s] for emphasis or reset. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
 
-  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
+  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Include occasional [pause 1-2s] to allow the listener to absorb key points. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
 }
 
 // Global formatting restrictions
@@ -27,15 +27,16 @@ CRITICAL FORMATTING RULES:
 - NEVER include background music references like "[soft ambient music begins]", "[music fades]", or any music-related text
 - NEVER use emojis in the response
 - Write only the spoken content that will be converted to audio
-- Do not include stage directions, sound effects, or production notes
+- Do not include stage directions, sound effects, or production notes (except supported tags like [pause 2s], [take a breath])
 - Focus purely on the verbal content that ElevenLabs will speak
 - DO NOT use nicknames, titles, or poetic phrases like "dear listener," "gentle giant," or "dance of the numbers."
 - DO NOT editorialize or anthropomorphize (e.g., "the S&P 500 took a nap").
 - Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
-- Eliminate filler words or overly inspirational openings. Start with substance.`
+- Eliminate filler words or overly inspirational openings. Start with substance.
+- Use ElevenLabs supported tags like [pause Xs], [take a breath] to control rhythm and energy.`
 
 // Consistent anti-fluff directive
-const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact.`
+const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact. Use [pause] and [take a breath] tags to reinforce tone.`
 
 // Valid content types for validation
 export const VALID_CONTENT_TYPES = [
@@ -61,7 +62,7 @@ ${content}
 
 Time available: 90 seconds
 
-Holiday information: ${holidayData ? JSON.stringify(holidayData) : 'No special holidays today'}
+${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
 - Start with "It's [day of the week], [date]."
@@ -249,31 +250,31 @@ ${NO_FLUFF_INSTRUCTION}`
   },
 
   sports: {
-    systemPrompt: (voice: string) => `You are a sports commentator for the DayStart app. Your role is to provide engaging sports updates and highlights that help users stay connected to their favorite teams and sports.
+    systemPrompt: (voice: string) => `You are a US sports commentator for the DayStart app. Your role is to provide engaging updates on major US sports leagues (NFL, NBA, MLB, NHL, NCAA) that help users stay connected to American sports culture.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userTeams, sportType, recentGames } = params
-      return `Review and refine this sports update for ${date}:
+      return `Review and refine this US sports update for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
 
 Time available: 30 seconds
 
-User's favorite teams: ${userTeams || 'general sports'}
-Sport focus: ${sportType || 'all'}
+User's favorite teams: ${userTeams || 'general US sports'}
+Sport focus: ${sportType || 'major US leagues (NFL, NBA, MLB, NHL, NCAA)'}
 Recent games: ${recentGames ? JSON.stringify(recentGames) : 'None'}
 
 Requirements:
-- Cover relevant games and results
-- Include key scores
-- Focus on user's sports
-- Keep it engaging and exciting
-- Include upcoming games if relevant
-- Use sports terminology appropriately
+- Focus on major US sports leagues (NFL, NBA, MLB, NHL, NCAA Football/Basketball)
+- Cover relevant games, scores, and key moments
+- Use American sports terminology and team names
+- Include playoff implications, standings updates, or championship context when relevant
+- Mention star players, injuries, or notable performances
+- Keep it engaging and exciting for US sports fans
 - Use breaths and other supported features in ElevenLabs
 - Follow the voice style instructions in the system prompt
 
@@ -281,7 +282,7 @@ Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}`
     },
-    maxTokens: 200,
+    maxTokens: 250,
     temperature: 0.7
   },
 

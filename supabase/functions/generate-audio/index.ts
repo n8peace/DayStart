@@ -1,0 +1,565 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { ContentBlock, LogEntry } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
+import { 
+  buildTTSRequest, 
+  getVoiceConfig, 
+  isValidVoice, 
+  ELEVEN_LABS_API_BASE, 
+  ELEVEN_LABS_TIMEOUT_MS,
+  DEFAULT_VOICE 
+} from './tts_prompts.ts'
+
+interface ElevenLabsResponse {
+  audio: string // base64 encoded audio
+  audio_length: number // duration in seconds
+}
+
+const BATCH_SIZE = 5 // Match ElevenLabs concurrency limit
+const MAX_RETRIES = 3
+
+// Helper function to validate content block before processing
+function validateContentBlock(contentBlock: ContentBlock): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  // Validate script exists and is not empty
+  if (!contentBlock.script || contentBlock.script.trim().length === 0) {
+    errors.push(`Missing or empty script for content block ${contentBlock.id}`)
+  }
+
+  // Validate status
+  if (contentBlock.status !== ContentBlockStatus.SCRIPT_GENERATED) {
+    errors.push(`Invalid status for audio generation: ${contentBlock.status}`)
+  }
+
+  // Validate voice
+  if (contentBlock.voice && !isValidVoice(contentBlock.voice)) {
+    errors.push(`Invalid voice: ${contentBlock.voice}`)
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+async function uploadAudioToStorage(
+  supabaseClient: any,
+  audioBuffer: ArrayBuffer,
+  contentBlockId: string,
+  contentType: string,
+  voice: string
+): Promise<string> {
+  try {
+    // Create a unique filename with content type folder structure
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const filename = `${contentType}/${contentBlockId}_${voice}_${timestamp}.aac`
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabaseClient.storage
+      .from('audio-files')
+      .upload(filename, audioBuffer, {
+        contentType: 'audio/aac',
+        cacheControl: '3600', // Cache for 1 hour
+        upsert: false // Don't overwrite existing files
+      })
+
+    if (error) {
+      throw new Error(`Storage upload failed: ${error.message}`)
+    }
+
+    // Get public URL
+    const { data: urlData } = supabaseClient.storage
+      .from('audio-files')
+      .getPublicUrl(filename)
+
+    return urlData.publicUrl
+
+  } catch (error) {
+    console.error('Error uploading audio to storage:', error)
+    throw error
+  }
+}
+
+async function generateAudioForContentBlock(
+  supabaseClient: any,
+  contentBlock: ContentBlock,
+  retryCount: number = 0
+): Promise<{ success: boolean; audioUrl?: string; duration?: number; error?: string }> {
+  try {
+    // Get voice configuration
+    const voice = contentBlock.voice || DEFAULT_VOICE
+    const voiceConfig = getVoiceConfig(voice)
+
+    // Build TTS request
+    const ttsRequest = buildTTSRequest(contentBlock.script || '', voice)
+
+    // Get ElevenLabs API key
+    const elevenLabsApiKey = Deno.env.get('ELEVEN_LABS_API_KEY')
+    if (!elevenLabsApiKey) {
+      return { success: false, error: 'ElevenLabs API key not configured - audio generation unavailable' }
+    }
+
+    // Call ElevenLabs API with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), ELEVEN_LABS_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(`${ELEVEN_LABS_API_BASE}/text-to-speech/${voiceConfig.voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/aac',
+          'Content-Type': 'application/json',
+          'xi-api-key': elevenLabsApiKey,
+        },
+        body: JSON.stringify(ttsRequest),
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`)
+      }
+
+      // Get audio data as ArrayBuffer
+      const audioBuffer = await response.arrayBuffer()
+
+      // Upload to Supabase Storage
+      const audioUrl = await uploadAudioToStorage(
+        supabaseClient,
+        audioBuffer,
+        contentBlock.id,
+        contentBlock.content_type,
+        voice
+      )
+
+      // Calculate duration (approximate based on text length and voice pacing)
+      const textLength = contentBlock.script?.length || 0
+      const estimatedDuration = Math.ceil(textLength / 15) // Rough estimate: 15 characters per second
+
+      return { 
+        success: true, 
+        audioUrl, 
+        duration: estimatedDuration 
+      }
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError.name === 'AbortError') {
+        throw new Error('ElevenLabs API request timed out')
+      }
+      throw fetchError
+    }
+
+  } catch (error) {
+    console.error(`Error generating audio for content block ${contentBlock.id}:`, error)
+    
+    // Retry logic with exponential backoff
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying audio generation for ${contentBlock.id} (attempt ${retryCount + 1}/${MAX_RETRIES})`)
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 10000) // Cap at 10 seconds
+      await new Promise(resolve => setTimeout(resolve, delay))
+      return generateAudioForContentBlock(supabaseClient, contentBlock, retryCount + 1)
+    }
+
+    return { success: false, error: error.message }
+  }
+}
+
+async function processContentBlock(
+  supabaseClient: any,
+  contentBlock: ContentBlock
+): Promise<{ success: boolean; processedCount: number; errors: string[] }> {
+  const errors: string[] = []
+  let processedCount = 0
+
+  try {
+    // Validate content block before processing
+    const validation = validateContentBlock(contentBlock)
+    if (!validation.valid) {
+      errors.push(...validation.errors)
+      return { success: false, processedCount: 0, errors }
+    }
+
+    // Use optimistic locking to prevent race conditions
+    const { data: currentBlock, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('status, updated_at')
+      .eq('id', contentBlock.id)
+      .single()
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch current content block: ${fetchError.message}`)
+    }
+
+    if (!currentBlock) {
+      throw new Error(`Content block ${contentBlock.id} not found`)
+    }
+
+    if (currentBlock.status !== ContentBlockStatus.SCRIPT_GENERATED) {
+      throw new Error(`Content block ${contentBlock.id} is not in script_generated status (current: ${currentBlock.status})`)
+    }
+
+    // Update status to audio_generating with optimistic locking
+    const { error: updateError } = await supabaseClient
+      .from('content_blocks')
+      .update({ 
+        status: ContentBlockStatus.AUDIO_GENERATING, 
+        updated_at: utcDate(),
+        retry_count: contentBlock.retry_count
+      })
+      .eq('id', contentBlock.id)
+      .eq('status', ContentBlockStatus.SCRIPT_GENERATED) // Optimistic locking
+      .eq('updated_at', currentBlock.updated_at)
+
+    if (updateError) {
+      throw new Error(`Failed to update content block status: ${updateError.message}`)
+    }
+
+    // Generate audio
+    const audioResult = await generateAudioForContentBlock(supabaseClient, contentBlock)
+
+    if (audioResult.success && audioResult.audioUrl) { // Update content block with audio URL
+      const { data: updatedBlock, error: updateError } = await supabaseClient
+        .from('content_blocks')
+        .update({
+                     status: ContentBlockStatus.READY,
+          audio_url: audioResult.audioUrl,
+          duration_seconds: audioResult.duration,
+          audio_duration: audioResult.duration,
+          audio_generated_at: utcDate(),
+          parameters: {
+            ...contentBlock.parameters,
+            audio_generated: true,
+            audio_duration: audioResult.duration,
+            voice_used: contentBlock.voice || DEFAULT_VOICE
+          }
+        })
+        .eq('id', contentBlock.id)
+        .select()
+        .single()
+
+      if (updateError) {
+        throw updateError
+      }
+      validateObjectShape(updatedBlock, 'id', 'audio_url', 'status')
+
+      processedCount = 1
+
+      // Log successful audio generation
+      await safeLogError(supabaseClient, {
+        event_type: 'audio_generation_success',
+        status: 'success',
+        message: `Audio generated for ${contentBlock.content_type}`,
+        content_block_id: contentBlock.id,
+        metadata: { 
+          content_type: contentBlock.content_type,
+          audio_duration: audioResult.duration,
+          voice_used: contentBlock.voice || DEFAULT_VOICE
+        }
+      })
+
+    } else {
+      // Audio generation failed
+      const { data: failedBlock, error: updateError } = await supabaseClient
+        .from('content_blocks')
+        .update({
+          status: ContentBlockStatus.AUDIO_FAILED,
+          parameters: {
+            ...contentBlock.parameters,
+            audio_generated: false,
+            audio_error: audioResult.error
+          }
+        })
+        .eq('id', contentBlock.id)
+        .select()
+        .single()
+
+      if (updateError) {
+        throw updateError
+      }
+
+      errors.push(`Audio generation failed for ${contentBlock.id}: ${audioResult.error}`)
+
+      // Log audio generation failure
+      await safeLogError(supabaseClient, {
+        event_type: 'audio_generation_failed',
+        status: 'error',
+        message: `Audio generation failed for content block ${contentBlock.id}: ${audioResult.error}`,
+        content_block_id: contentBlock.id,
+        metadata: { 
+          content_type: contentBlock.content_type,
+          error: audioResult.error 
+        }
+      })
+    }
+
+  } catch (error) {
+    console.error(`Error processing content block ${contentBlock.id}:`, error)
+    errors.push(`Content block ${contentBlock.id}: ${error.message}`)
+
+    // Log processing error
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_processing_failed',
+      status: 'error',
+      message: `Audio processing failed for content block ${contentBlock.id}: ${error.message}`,
+      content_block_id: contentBlock.id,
+      metadata: { 
+        content_type: contentBlock.content_type,
+        error: error.toString() 
+      }
+    })
+  }
+
+  return { success: errors.length === 0, processedCount, errors }
+}
+
+async function processBatch(supabaseClient: any): Promise<{ 
+  success: boolean; 
+  processedCount: number; 
+  totalErrors: number; 
+  errors: string[] 
+}> {
+  const errors: string[] = []
+  let totalProcessed = 0
+  let totalErrors = 0
+  try {
+    // Fetch content blocks that need audio generation
+    const { data: contentBlocks, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('*')
+      .eq('status', ContentBlockStatus.SCRIPT_GENERATED)
+      .not('script', 'is', null)
+      .order('content_priority', { ascending: true })
+      .limit(BATCH_SIZE)
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch content blocks: ${fetchError.message}`)
+    }
+
+    if (!contentBlocks || contentBlocks.length === 0) {
+      return { success: true, processedCount: 0, totalErrors: 0, errors: [] }
+    }
+
+    console.log(`Processing ${contentBlocks.length} content blocks for audio generation`)
+
+    // Process each content block
+    for (const contentBlock of contentBlocks) {
+      try {
+        validateObjectShape(contentBlock, ['id', 'content_type', 'script', 'status'])
+        const result = await processContentBlock(supabaseClient, contentBlock)
+        
+        totalProcessed += result.processedCount
+        errors.push(...result.errors)
+        
+        if (!result.success) {
+          totalErrors++
+        }
+      } catch (error) {
+        console.error(`Error processing content block ${contentBlock.id}:`, error)
+        errors.push(`Content block ${contentBlock.id}: ${error.message}`)
+        totalErrors++
+      }
+    }
+
+    return { 
+      success: totalErrors === 0, 
+      processedCount: totalProcessed, 
+      totalErrors, 
+      errors 
+    }
+
+  } catch (error) {
+    console.error('Error in processBatch:', error)
+    errors.push(`Batch processing error: ${error.message}`)
+    return { success: false, processedCount: totalProcessed, totalErrors: errors.length, errors }
+  }
+}
+
+async function processBatchAsync(supabaseClient: any): Promise<void> {
+  try {
+    console.log('Starting async audio generation batch')
+    const result = await processBatch(supabaseClient)
+    
+    console.log(`Async batch completed: ${result.processedCount} processed, ${result.totalErrors} errors`)
+    
+    // Log batch completion
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_batch_complete',
+      status: result.success ? 'success' : 'partial_success',
+      message: `Audio generation batch completed: ${result.processedCount} processed, ${result.totalErrors} errors`,
+      metadata: { 
+        processed_count: result.processedCount,
+        error_count: result.totalErrors,
+        batch_size: BATCH_SIZE
+      }
+    })
+
+  } catch (error) {
+    console.error('Error in async batch processing:', error)
+    
+    // Log batch failure
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_batch_failed',
+      status: 'error',
+      message: `Audio generation batch failed: ${error.message}`,
+      metadata: { 
+        error: error.toString(),
+        batch_size: BATCH_SIZE
+      }
+    })
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'ELEVEN_LABS_API_KEY'
+  ])
+
+  // Handle health check requests
+  const url = new URL(req.url)
+  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
+    try {
+      const response = {
+        status: 'healthy',
+        function: 'generate-audio',
+        timestamp: new Date().toISOString()
+      }
+      return new Response(
+        JSON.stringify(response),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    } catch (healthError) {
+      return new Response(
+        JSON.stringify({
+          status: 'error',
+          function: 'generate-audio',
+          error: healthError.message,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
+  }
+
+  // Validate HTTP method for non-health check requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: `Method ${req.method} not allowed. Use POST.` 
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 405     }
+    )
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Check if this is a cron job request (immediate response needed)
+    const isCronJob = req.headers.get('user-agent')?.includes('cron-job.org') || 
+                     req.headers.get('x-cron-job') === 'true'
+
+    if (isCronJob) {
+      // Start async processing without waiting
+      processBatchAsync(supabaseClient).catch(error => {
+        console.error('Async processing error:', error)
+      })
+      
+      // Return immediate success response
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Audio generation batch initiated asynchronously',
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
+
+    // For non-cron requests, process synchronously (for manual testing)
+    const result = await processBatch(supabaseClient)
+
+    // Log batch completion
+    await safeLogError(supabaseClient, {
+      event_type: 'audio_generation_batch_complete',
+      status: result.success ? 'success' : 'partial_success',
+      message: `Audio generation batch completed: ${result.processedCount} processed, ${result.totalErrors} errors`,
+      metadata: { 
+        processed_count: result.processedCount,
+        error_count: result.totalErrors,
+        batch_size: BATCH_SIZE
+      }
+    })
+
+    return new Response(
+      JSON.stringify({
+        success: result.success,
+        processed_count: result.processedCount,
+        error_count: result.totalErrors,
+        errors: result.errors
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: result.success ? 200 : 207 // 207 Multi-Status for partial success
+      }
+    )
+
+  } catch (error) {
+    console.error('Error in generate-audio function:', error)
+
+    // Log error
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      
+      await safeLogError(supabaseClient, {
+        event_type: 'audio_generation_batch_failed',
+        status: 'error',
+        message: `Audio generation batch failed: ${error.message}`,
+        metadata: { 
+          error: error.toString(),
+          batch_size: BATCH_SIZE
+        }
+      })
+    } catch (logError) {
+      console.error('Failed to log error:', logError)
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: false, 
+        error: error.message 
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
+    )
+  }
+}) 

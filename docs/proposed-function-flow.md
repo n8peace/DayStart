@@ -1,8 +1,8 @@
-# DayStart Proposed Function Flow
+# DayStart Function Architecture
 
 ## 🎯 Overview
 
-This document outlines the proposed edge function architecture for DayStart's content generation system. The approach uses specialized content functions, unified script generation, and centralized audio processing.
+This document outlines the current edge function architecture for DayStart's content generation system. The approach uses specialized content functions, unified script generation, and centralized audio processing. (This is the live, implemented system.)
 
 ## 📋 Function Architecture
 
@@ -107,14 +107,16 @@ graph TD
 ```mermaid
 graph TD
     A[generate-audio] --> B[Query script_generated records]
-    B --> C[Send to ElevenLabs]
-    C --> D[Store audio URL]
-    D --> E[Update duration_seconds]
-    E --> F[Status = 'ready']
+    B --> C[Optimistic locking: script_generated → audio_generating]
+    C --> D[Send to ElevenLabs]
+    D --> E[Store audio URL]
+    E --> F[Update duration_seconds]
+    F --> G[Status = 'ready']
 ```
 
 **generate-audio Function:**
 - Queries `content_blocks` where `status = 'script_generated'`
+- Uses optimistic locking to prevent race conditions and duplicate processing
 - Sends script to ElevenLabs with appropriate voice
 - Stores generated audio URL in `audio_url`
 - Updates `duration_seconds` and `audio_generated_at`
