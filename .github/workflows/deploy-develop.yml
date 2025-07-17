@@ -107,8 +107,22 @@ jobs:
         cd supabase
         echo "🚀 Deploying edge functions to development..."
         echo "Current directory: $(pwd)"
+        echo "Git commit hash: $(git rev-parse HEAD)"
+        echo "Git branch: $(git branch --show-current)"
         echo "Functions directory contents:"
         ls -la functions/ || echo "Functions directory not found"
+        
+        # Check generate-script function specifically
+        echo "🔍 Checking generate-script function source:"
+        if [ -f "functions/generate-script/index.ts" ]; then
+          echo "✅ generate-script/index.ts exists"
+          echo "📄 First 10 lines of generate-script/index.ts:"
+          head -10 functions/generate-script/index.ts
+          echo "📄 Last 10 lines of generate-script/index.ts:"
+          tail -10 functions/generate-script/index.ts
+        else
+          echo "❌ generate-script/index.ts not found"
+        fi
         
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
@@ -123,7 +137,12 @@ jobs:
                 continue
               fi
               echo "🚀 Deploying function: $func_name"
-              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || {
+              echo "📁 Function directory: $func_dir"
+              echo "📄 Function files:"
+              ls -la "$func_dir"
+              
+              # Deploy with verbose output
+              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug || {
                 echo "❌ Failed to deploy function: $func_name"
                 echo "🔍 Checking function status..."
                 supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
