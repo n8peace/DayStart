@@ -1,8 +1,9 @@
-name: Deploy to Development
+name: Deploy to Development (DISABLED)
 
 on:
-  push:
-    branches: [ develop ]
+  # DISABLED: This workflow conflicts with deploy-develop-new
+  # push:
+  #   branches: [ develop ]
   workflow_dispatch:
     inputs:
       force_deploy:
