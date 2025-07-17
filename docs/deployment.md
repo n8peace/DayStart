@@ -236,6 +236,28 @@ Example: `20240101120000_create_users_table.sql`
 
 ### Common Issues
 
+#### Source Code vs Compiled Code in Supabase Dashboard
+**Issue**: Code shown in Supabase Dashboard looks different from your repository
+**Explanation**: This is **expected behavior** - Supabase shows the compiled/transpiled JavaScript, not your TypeScript source code
+
+**What You See in Supabase Dashboard:**
+- ✅ **Compiled JavaScript** - TypeScript converted to JavaScript
+- ✅ **Minified/Processed** - Code optimized for production
+- ✅ **Runtime Version** - What's actually executing
+
+**What's in Your Repository:**
+- ✅ **TypeScript Source** - Original `.ts` files you write
+- ✅ **Human-readable** - With proper formatting, comments, and types
+- ✅ **Development Version** - What you edit and commit
+
+**Verification**: Your functions ARE running the latest code from your repository, even though the dashboard shows the compiled version.
+
+**How to Verify Deployments Are Working:**
+1. Check GitHub Actions: `https://github.com/n8peace/DayStart/actions`
+2. Look for `Deploy to Development` workflow runs with `✅ success`
+3. Test your functions - they'll execute your latest code
+4. Monitor function logs in Supabase Dashboard for execution details
+
 #### Missing Environment Variables
 ```
 ❌ Missing required environment variable: SUPABASE_URL
@@ -261,6 +283,25 @@ Error: Project not found
 3. Ensure project exists and is accessible
 
 #### Function Health Check Failures
+
+##### HTTP 500 Errors (Function Runtime Errors)
+
+##### Database Constraint Violations
+**Issue**: `content_blocks_audio_timing_check` constraint violation
+**Error**: `new row for relation "content_blocks" violates check constraint "content_blocks_audio_timing_check"`
+
+**Root Cause**: Race condition between script generation and audio generation processes, or timezone inconsistencies in timestamp handling.
+
+**Solution**: 
+1. **Optimistic Locking**: Functions now use optimistic locking to prevent concurrent updates
+2. **UTC Timestamp Consistency**: All timestamps use consistent UTC handling with `ensureTimestampAfter()` helper
+3. **Safety Buffer**: Audio generation adds 2-second buffer to ensure `audio_generated_at > script_generated_at`
+4. **Error Handling**: Detailed logging for constraint violations to aid debugging
+
+**Prevention**:
+- Functions fetch current timestamps before updates to prevent race conditions
+- Use `utcDate()` utility for consistent date handling
+- Implement proper error handling for constraint violations
 
 ##### HTTP 500 Errors (Function Runtime Errors)
 ```
