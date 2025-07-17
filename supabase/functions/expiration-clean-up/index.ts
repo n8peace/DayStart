@@ -1,39 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  user_id?: string
-  content_type: string
-  date: string
-  script?: string
-  audio_url?: string
-  status: string
-  voice?: string
-  duration_seconds?: number
-  retry_count: number
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  parameters?: any
-  created_at: string
-  updated_at: string
-  script_generated_at?: string
-  audio_generated_at?: string
-}
-
-interface LogEntry {
-  event_type: string
-  status: string
-  message: string
-  metadata?: any
-  content_block_id?: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 interface CleanupResult {
   success: boolean
@@ -43,17 +14,6 @@ interface CleanupResult {
 }
 
 const BATCH_SIZE = 50 // Process in batches to avoid timeouts
-
-// Helper function to safely log operations
-async function safeLog(supabaseClient: any, logData: Partial<LogEntry>): Promise<void> {
-  try {
-    await supabaseClient
-      .from('logs')
-      .insert(logData)
-  } catch (logError) {
-    console.error('Failed to log operation:', logError)
-  }
-}
 
 // Helper function to extract storage path from audio URL
 function extractStoragePath(audioUrl: string): string | null {
@@ -157,7 +117,7 @@ async function processExpiredContentBlock(
 
     if (!storageResult.success) {
       // Log the error but continue with database update
-      await safeLog(supabaseClient, {
+      await safeLogError(supabaseClient, {
         event_type: 'expiration_cleanup',
         status: 'error',
         message: `Failed to delete audio from storage: ${storageResult.error}`,
@@ -181,7 +141,7 @@ async function processExpiredContentBlock(
     }
 
     // Log successful cleanup
-    await safeLog(supabaseClient, {
+    await safeLogError(supabaseClient, {
       event_type: 'expiration_cleanup',
       status: 'success',
       message: `Cleaned up expired content block`,
@@ -225,7 +185,7 @@ async function processExpiredContentBlocks(supabaseClient: any): Promise<Cleanup
       const { data: contentBlocks, error: queryError } = await supabaseClient
         .from('content_blocks')
         .select('*')
-        .lt('expiration_date', new Date().toISOString().split('T')[0]) // Less than today
+        .lt('expiration_date', utcDate(new Date()).split('T')[0]) // Less than today
         .not('audio_url', 'is', null) // Has audio URL
         .neq('status', 'expired') // Not already marked as expired
         .order('expiration_date', { ascending: true })
@@ -263,7 +223,7 @@ async function processExpiredContentBlocks(supabaseClient: any): Promise<Cleanup
     }
 
     // Log summary
-    await safeLog(supabaseClient, {
+    await safeLogError(supabaseClient, {
       event_type: 'expiration_cleanup',
       status: result.success ? 'success' : 'partial_success',
       message: `Expiration cleanup completed: ${result.processedCount} processed, ${result.deletedAudioCount} audio files deleted`,
@@ -278,7 +238,7 @@ async function processExpiredContentBlocks(supabaseClient: any): Promise<Cleanup
     result.success = false
     result.errors.push(`Unexpected error in batch processing: ${error.message}`)
     
-    await safeLog(supabaseClient, {
+    await safeLogError(supabaseClient, {
       event_type: 'expiration_cleanup',
       status: 'error',
       message: `Batch processing failed: ${error.message}`,
@@ -296,52 +256,176 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  try {
-    // Create Supabase client with service role
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration')
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    const currentDate = utcDate()
+
+    // Find expired content blocks
+    const { data: expiredBlocks, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('*')
+      .lt('expiration_date', currentDate)
+      .not('status', ContentBlockStatus.EXPIRED)
+      .order('expiration_date', { ascending: true })
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch expired content blocks: ${fetchError.message}`)
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
+    if (!expiredBlocks || expiredBlocks.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No expired content blocks found',
+          cleaned_count: 0
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
 
-    // Process expired content blocks
-    const result = await processExpiredContentBlocks(supabaseClient)
+    const cleanedBlocks = []
+    const errors = []
+    // Process each expired block
+    for (const block of expiredBlocks) {
+      try {
+        validateObjectShape(block, ['id', 'content_type', 'expiration_date', 'status'])
+
+        // Update the expired block
+        const { data: updatedBlock, error: updateError } = await supabaseClient
+          .from('content_blocks')
+          .update({
+            status: ContentBlockStatus.EXPIRED,
+            parameters: {
+              ...block.parameters,
+              expired_cleanup: true,
+              original_status: block.status,
+              cleanup_timestamp: new Date().toISOString()
+            }
+          })
+          .eq('id', block.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          throw updateError
+        }
+        validateObjectShape(updatedBlock, ['id', 'status'])
+
+        cleanedBlocks.push(updatedBlock)
+
+        // Log cleanup action
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'expired_content_cleaned',
+              status: 'success',
+              message: `Expired content block ${block.id} marked as expired`,
+              content_block_id: block.id,
+              metadata: {
+                content_type: block.content_type,
+                original_status: block.status,
+                expiration_date: block.expiration_date,
+                days_expired: Math.round((Date.now() - new Date(block.expiration_date).getTime()) / (10 * 60 * 60 * 24))
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log cleanup action:', logError)
+        }
+
+      } catch (error) {
+        console.error(`Error cleaning expired block ${block.id}:`, error)
+        errors.push(`Block ${block.id}: ${error.message}`)
+
+        // Log cleanup error
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'expired_content_cleanup_failed',
+              status: 'error',
+              message: `Failed to clean expired content block ${block.id}: ${error.message}`,
+              content_block_id: block.id,
+              metadata: {
+                content_type: block.content_type,
+                error: error.toString() 
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log cleanup error:', logError)
+        }
+      }
+    }
 
     return new Response(
-      JSON.stringify({
-        success: result.success,
-        processed_count: result.processedCount,
-        deleted_audio_count: result.deletedAudioCount,
-        errors: result.errors,
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        success: true, 
+        cleaned_blocks: cleanedBlocks,
+        total_found: expiredBlocks.length,
+        successful: cleanedBlocks.length,
+        errors: errors
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: result.success ? 200 : 500
+        status: 200 
       }
     )
 
   } catch (error) {
-    console.error('Expiration cleanup function error:', error)
-    
+    console.error('Error cleaning expired content:', error)
+
+    // Log error
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      )
+      
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'expired_content_cleanup_failed',
+          status: 'error',
+          message: `Expired content cleanup failed: ${error.message}`,
+          metadata: { error: error.toString() }
+        })
+    } catch (logError) {
+      console.error('Failed to log error:', logError)
+    }
+
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+        status: 500      }
     )
   }
 }) 

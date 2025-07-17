@@ -1,31 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
-
-const ENCOURAGEMENT_TYPES = ['Christian', 'Stoic', 'Muslim', 'Jewish', 'General']
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
 
   try {
     const supabaseClient = createClient(
@@ -33,113 +23,127 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get UTC dates for content generation
-    const utcDate = new Date().toISOString().split('T')[0]
-    const tomorrowUtc = new Date()
-    tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
-    const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
-
-    // Get expiration date (72 hours from target date) in UTC
-    const expirationDate = new Date(utcDate)
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    const results = []
-
-    // Generate content for each encouragement type
-    for (const encouragementType of ENCOURAGEMENT_TYPES) {
-      try {
-        // Get previous 5 encouragements of this type to avoid repetition
-        const { data: previousEncouragements, error: previousError } = await supabaseClient
-          .from('content_blocks')
-          .select('content')
-          .eq('content_type', 'encouragement')
-          .in('status', ['ready', 'content_ready'])
-          .not('status', 'content_failed')
-          .contains('parameters', { encouragement_type: encouragementType })
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (previousError) {
-          console.error(`Error fetching previous ${encouragementType} encouragements:`, previousError)
-        }
-
-        const previousMessages = previousEncouragements?.map(e => e.content) || []
-
-        // Create content summary
-        const content = `Type: ${encouragementType}. Previous messages: ${previousMessages.join(' | ')}`
-
-        // Create content block
-        const contentBlock: Partial<ContentBlock> = {
-          content_type: 'encouragement',
-          date: tomorrowDate,
-          content: content,
-          parameters: {
-            encouragement_type: encouragementType,
-            previous_messages: previousMessages
+    // Generate encouragement content using GPT-4
+    let encouragementContent = null
+    let gptError = null
+    try {
+      const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+      if (openaiApiKey) {
+        const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json'
           },
-          status: 'content_ready',
-          content_priority: 6,
-          expiration_date: expirationDateStr,
-          language_code: 'en-US'
+          body: JSON.stringify({
+            model: 'gpt-4',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a motivational coach who creates brief, uplifting morning messages. Keep responses under 10words and focus on positivity, personal growth, and starting the day with energy.'
+              },
+              {
+                role: 'user',
+                content: 'Create a brief, encouraging morning message for someone starting their day. Make it personal, motivational, and actionable.'
+              }
+            ],
+            max_tokens: 150,
+            temperature: 0.8
+          }),
+          signal: AbortSignal.timeout(15 * 1000) // 15 second timeout
+        })
+
+        if (gptResponse.ok) {
+          const gptData = await gptResponse.json()
+          if (gptData.choices && gptData.choices[0]?.message?.content) {
+            encouragementContent = gptData.choices[0].message.content.trim()
+          } else {
+            gptError = 'Invalid GPT response format'
+          }
+        } else {
+          gptError = `OpenAI API failed: ${gptResponse.status}`
         }
-
-        const { data, error } = await supabaseClient
-          .from('content_blocks')
-          .insert(contentBlock)
-          .select()
-          .single()
-
-        if (error) {
-          throw error
-        }
-
-        results.push(data)
-
-        // Log successful content generation
-        await supabaseClient
-          .from('logs')
-          .insert({
-            event_type: 'content_generated',
-            status: 'success',
-            message: `${encouragementType} encouragement content generated successfully`,
-            content_block_id: data.id,
-            metadata: { 
-              content_type: 'encouragement', 
-              encouragement_type: encouragementType,
-              date: tomorrowDate 
-            }
-          })
-
-      } catch (error) {
-        console.error(`Error generating ${encouragementType} encouragement content:`, error)
-        
-        // Log individual encouragement processing error
-        await supabaseClient
-          .from('logs')
-          .insert({
-            event_type: 'content_generation_failed',
-            status: 'error',
-            message: `${encouragementType} encouragement content generation failed: ${error.message}`,
-            metadata: { 
-              content_type: 'encouragement', 
-              encouragement_type: encouragementType,
-              error: error.toString() 
-            }
-          })
+      } else {
+        gptError = 'OpenAI API key not configured'
+      }
+    } catch (error) {
+      if (error.name === 'TimeoutError') {
+        gptError = 'OpenAI API request timed out'
+      } else {
+        gptError = `OpenAI API error: ${error.message}`
       }
     }
 
+    // Log API call
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'api_call',
+          status: gptError ? 'error' : 'success',
+          message: gptError || 'Encouragement content generated successfully',
+          metadata: { api: 'openai_gpt4' }
+        })
+    } catch (logError) {
+      safeLogError('Failed to log API call:', logError)
+    }
+
+    // Create content block
+    const contentBlock: Partial<ContentBlock> = {
+      content_type: 'encouragement',
+      date: utcDateStr,
+      content: encouragementContent || 'Have a wonderful day filled with positivity and growth!',
+      parameters: {
+        gpt_generated: !!encouragementContent,
+        gpt_error: gptError,
+        fallback_used: !encouragementContent
+      },
+      status: gptError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
+      content_priority: 6,
+      expiration_date: expirationDateStr,
+      language_code: 'en-US'
+    }
+
+    const { data, error } = await supabaseClient
+      .from('content_blocks')
+      .insert(contentBlock)
+      .select()
+      .single()
+
+    if (error) {
+      throw error
+    }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
+
+    // Log successful content generation
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generated',
+          status: 'success',
+          message: 'Encouragement content generated successfully',
+          content_block_id: data.id,
+          metadata: { content_type: 'encouragement', date: utcDateStr }
+        })
+    } catch (logError) {
+      safeLogError('Failed to log successful generation:', logError)
+    }
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        content_blocks: results,
-        total_processed: ENCOURAGEMENT_TYPES.length,
-        successful: results.length
+      JSON.stringify({
+        success: true,
+        content_block: data,
+        gpt_error: gptError
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     )
 
@@ -152,7 +156,7 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
-      
+
       await supabaseClient
         .from('logs')
         .insert({
@@ -166,13 +170,13 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 500
       }
     )
   }

@@ -1,29 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY'
+  ])
 
   try {
     const supabaseClient = createClient(
@@ -31,15 +23,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get UTC date for sports content
-    const utcDate = new Date().toISOString().split('T')[0]
-
-    // Get expiration date (72 hours from target date) in UTC
-    const expirationDate = new Date(utcDate)
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
-
-    // Get today's date for sports data lookup
 
     // Fetch US sports data from multiple ESPN APIs
     const usSports = [
@@ -154,7 +141,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'sports',
-      date: utcDate,
+      date: utcDateStr,
       content: content,
       parameters: {
         sports_data: sportsData,
@@ -162,7 +149,7 @@ serve(async (req) => {
         sports_events: sportsEvents,
         us_sports_focus: true
       },
-      status: Object.keys(sportsErrors).length === Object.keys(sportsData).length ? 'content_failed' : 'content_ready',
+      status: Object.keys(sportsErrors).length === Object.keys(sportsData).length ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
       content_priority: 4,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -177,6 +164,7 @@ serve(async (req) => {
     if (error) {
       throw error
     }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
     // Log successful content generation
     await supabaseClient
@@ -186,7 +174,7 @@ serve(async (req) => {
         status: 'success',
         message: 'Sports content generated successfully',
         content_block_id: data.id,
-        metadata: { content_type: 'sports', date: utcDate }
+        metadata: { content_type: 'sports', date: utcDateStr }
       })
 
     return new Response(

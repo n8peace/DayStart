@@ -1,46 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    // News API keys are optional, but warn if missing
+  ])
+
   try {
-    // Validate required environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error('Missing required Supabase environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
-    }
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
-
-    // Get UTC date for headlines content
-    const utcDate = new Date().toISOString().split('T')[0]
-
-    // Get expiration date (72 hours from target date) in UTC
-    const expirationDate = new Date(utcDate)
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
@@ -113,7 +98,7 @@ serve(async (req) => {
           }
         ])
     } catch (logError) {
-      console.error('Failed to log API calls:', logError)
+      safeLogError('Failed to log API calls:', logError)
       // Continue execution even if logging fails
     }
 
@@ -142,7 +127,7 @@ serve(async (req) => {
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'headlines',
-      date: utcDate,
+      date: utcDateStr,
       content: content,
       parameters: {
         news_api_data: newsApiData,
@@ -151,7 +136,7 @@ serve(async (req) => {
         gnews_error: gnewsError,
         headlines: headlines
       },
-      status: (newsApiError && gnewsError) ? 'content_failed' : 'content_ready',
+      status: (newsApiError && gnewsError) ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
       content_priority: 3,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -166,6 +151,7 @@ serve(async (req) => {
     if (error) {
       throw error
     }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
     // Log successful content generation (with error handling)
     try {
@@ -176,10 +162,10 @@ serve(async (req) => {
           status: 'success',
           message: 'Headlines content generated successfully',
           content_block_id: data.id,
-          metadata: { content_type: 'headlines', date: utcDate }
+          metadata: { content_type: 'headlines', date: utcDateStr }
         })
     } catch (logError) {
-      console.error('Failed to log successful generation:', logError)
+      safeLogError('Failed to log successful generation:', logError)
       // Continue execution even if logging fails
     }
 
@@ -197,7 +183,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error generating headlines content:', error)
+    safeLogError('Error generating headlines content:', error)
 
     // Log error
     try {
@@ -221,7 +207,7 @@ serve(async (req) => {
           })
       }
     } catch (logError) {
-      console.error('Failed to log error:', logError)
+      safeLogError('Failed to log error:', logError)
     }
 
     return new Response(

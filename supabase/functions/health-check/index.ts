@@ -1,12 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 import { runHealthChecks, HealthReport } from './health-checks.ts'
 import { sendHealthReportEmail } from './email-service.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 serve(async (req) => {
   console.log('🔍 health-check function called')
@@ -19,135 +18,103 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Handle health check requests for the function itself
-  const url = new URL(req.url)
-  console.log('🔍 URL pathname:', url.pathname)
-  
-  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
-    console.log('🔍 Handling health check request')
-    try {
-      const response = {
-        status: 'healthy',
-        function: 'health-check',
-        timestamp: new Date().toISOString()
-      }
-      console.log('🔍 Health check response:', response)
-      return new Response(
-        JSON.stringify(response),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200
-        }
-      )
-    } catch (healthError) {
-      console.error('🔍 Health check error:', healthError)
-      return new Response(
-        JSON.stringify({
-          status: 'error',
-          function: 'health-check',
-          error: healthError.message,
-          timestamp: new Date().toISOString()
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        }
-      )
-    }
-  }
-
-  // Validate HTTP method for non-health check requests
-  if (req.method !== 'POST') {
-    console.log('🔍 Invalid method:', req.method)
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: `Method ${req.method} not allowed. Use POST.` 
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 405 
-      }
-    )
-  }
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
 
   try {
-    console.log('🔍 Starting health check process')
-    
-    // Validate environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing required Supabase environment variables')
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+    // Run health checks
+    const healthResults = await runHealthChecks(supabaseClient)
+
+    // Log health check results
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'health_check_completed',
+          status: healthResults.overall_status === 'healthy' ? 'success' :
+                  healthResults.overall_status === 'warning' ? 'warning' : 'error',
+          message: `Health check completed: ${healthResults.overall_status}`,
+          metadata: {
+            overall_status: healthResults.overall_status,
+            passed_checks: healthResults.summary.healthy_count,
+            failed_checks: healthResults.summary.critical_count + healthResults.summary.warning_count,
+            total_checks: healthResults.summary.total_checks,
+            check_details: healthResults.checks
+          }
+        })
+    } catch (logError) {
+      safeLogError('Failed to log health check results:', logError)
     }
 
-    if (!resendApiKey) {
-      console.warn('RESEND_API_KEY not configured - email notifications will be skipped')
-    }
-
-    // Create Supabase client
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
-    console.log('🔍 Supabase client created successfully')
-
-    // Run all health checks
-    console.log('🔍 Running health checks...')
-    const healthReport = await runHealthChecks(supabaseClient)
-    console.log('🔍 Health checks completed')
-
-    // Send email report if Resend is configured
-    let emailSent = false
-    let emailError = null
-    
-    if (resendApiKey) {
+    // Send email report if there are failures
+    if (healthResults.summary.critical_count + healthResults.summary.warning_count > 0) {
       try {
-        console.log('🔍 Sending email report...')
-        await sendHealthReportEmail(healthReport, resendApiKey)
-        emailSent = true
-        console.log('🔍 Email report sent successfully')
-      } catch (emailErr) {
-        console.error('🔍 Email sending failed:', emailErr)
-        emailError = emailErr.message
+        await sendHealthReportEmail(healthResults, Deno.env.get('RESEND_API_KEY') ?? '')
+      } catch (emailError) {
+        console.error('Failed to send health report email:', emailError)
+        // Log email failure
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'health_report_email_failed',
+              status: 'error',
+              message: `Failed to send health report email: ${emailError.message}`,
+              metadata: { error: emailError.toString() }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log email error:', logError)
+        }
       }
     }
-
-    // Log the health check completion
-    await safeLogError(supabaseClient, {
-      event_type: 'health_check_completed',
-      status: healthReport.overall_status === 'healthy' ? 'success' : 
-              healthReport.overall_status === 'warning' ? 'warning' : 'error',
-      message: `Health check completed: ${healthReport.overall_status}`,
-      metadata: {
-        total_checks: healthReport.summary.total_checks,
-        healthy_count: healthReport.summary.healthy_count,
-        warning_count: healthReport.summary.warning_count,
-        critical_count: healthReport.summary.critical_count,
-        email_sent: emailSent,
-        email_error: emailError
-      }
-    })
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        health_report: healthReport,
-        email_sent: emailSent,
-        email_error: emailError,
+      JSON.stringify({ 
+        success: healthResults.overall_status === 'healthy',    overall_status: healthResults.overall_status,
+        passed_checks: healthResults.summary.healthy_count,
+        failed_checks: healthResults.summary.critical_count + healthResults.summary.warning_count,
+        total_checks: healthResults.summary.total_checks,
+        checks: healthResults.checks,
         timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
+        status: healthResults.overall_status === 'healthy' ? 200 : 503
       }
     )
 
   } catch (error) {
-    console.error('🔍 Health check function error:', error)
-    
+    console.error('Error running health checks:', error)
+
+    // Log error
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'health_check_failed',
+          status: 'error',
+          message: `Health check failed: ${error.message}`,
+          metadata: { error: error.toString() }
+        })
+    } catch (logError) {
+      console.error('Failed to log error:', logError)
+    }
+
     return new Response(
-      JSON.stringify({
-        success: false,
+      JSON.stringify({ 
+        success: false, 
         error: error.message,
         timestamp: new Date().toISOString()
       }),
@@ -157,20 +124,4 @@ serve(async (req) => {
       }
     )
   }
-})
-
-// Helper function to safely log errors
-async function safeLogError(supabaseClient: any, logData: any) {
-  try {
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: logData.event_type,
-        status: logData.status,
-        message: logData.message,
-        metadata: logData.metadata || {}
-      })
-  } catch (logError) {
-    console.error('Failed to log to database:', logError)
-  }
-} 
+}) 

@@ -1,29 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'ALPHA_VANTAGE_API_KEY'
+  ])
 
   try {
     const supabaseClient = createClient(
@@ -31,114 +24,101 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get UTC date for markets content
-    const utcDate = new Date().toISOString().split('T')[0]
-
-    // Get expiration date (72 hours from target date) in UTC
-    const expirationDate = new Date(utcDate)
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
 
-    // Fetch market data from Yahoo Finance API via Rapid API
-    let yahooData = null
-    let yahooError = null
+    // Fetch market data from Alpha Vantage API
+    let marketData = null
+    let marketError = null
     try {
-      const rapidApiKey = Deno.env.get('RAPID_API_KEY')
-      if (rapidApiKey) {
-        const yahooResponse = await fetch('https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes?region=US&symbols=^GSPC%2C^DJI%2C^TNX%2CBTC-USD', {
-          headers: {
-            'X-RapidAPI-Key': rapidApiKey,
-            'X-RapidAPI-Host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
+      const alphaVantageApiKey = Deno.env.get('ALPHA_VANTAGE_API_KEY')
+      if (alphaVantageApiKey) {
+        // Fetch major indices data
+        const indices = ['^GSPC', '^DJI', '^TNX'] // S&P 500, NASDAQ, Dow Jones
+        const marketResults = {}
+        for (const symbol of indices) {
+          try {
+            const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${alphaVantageApiKey}`, {
+              signal: AbortSignal.timeout(10000) // 10 second timeout
+            })
+            if (response.ok) {
+              const data = await response.json()
+              if (data['Global Quote']) {
+                marketResults[symbol] = data['Global Quote']
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching ${symbol}:`, error)
           }
-        })
-        if (yahooResponse.ok) {
-          yahooData = await yahooResponse.json()
+        }
+
+        if (Object.keys(marketResults).length > 0) {
+          marketData = marketResults
         } else {
-          yahooError = `Yahoo Finance API failed: ${yahooResponse.status}`
+          marketError = 'No market data available from Alpha Vantage'
         }
       } else {
-        yahooError = 'Rapid API key not configured'
+        marketError = 'Alpha Vantage API key not configured'
       }
     } catch (error) {
-      yahooError = `Yahoo Finance API error: ${error.message}`
+      if (error.name === 'TimeoutError') {
+        marketError = 'Alpha Vantage API request timed out'
+      } else {
+        marketError = `Alpha Vantage API error: ${error.message}`
+      }
     }
 
-    // Fetch business news from News API
-    let businessNewsData = null
-    let businessNewsError = null
+    // Log API call
     try {
-      const newsApiKey = Deno.env.get('NEWS_API_KEY')
-      if (newsApiKey) {
-        const businessResponse = await fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}&pageSize=3`)
-        if (businessResponse.ok) {
-          businessNewsData = await businessResponse.json()
-        } else {
-          businessNewsError = `Business News API failed: ${businessResponse.status}`
-        }
-      } else {
-        businessNewsError = 'News API key not configured'
-      }
-    } catch (error) {
-      businessNewsError = `Business News API error: ${error.message}`
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'api_call',
+          status: marketError ? 'error' : 'success',
+          message: marketError || 'Market data fetched successfully',
+          metadata: { api: 'alpha_vantage_markets' }
+        })
+    } catch (logError) {
+      safeLogError('Failed to log API call:', logError)
     }
 
-    // Log API calls
-    await supabaseClient
-      .from('logs')
-      .insert([
-        {
-          event_type: 'api_call',
-          status: yahooError ? 'error' : 'success',
-          message: yahooError || 'Yahoo Finance API data fetched successfully',
-          metadata: { api: 'yahoo_finance_api' }
-        },
-        {
-          event_type: 'api_call',
-          status: businessNewsError ? 'error' : 'success',
-          message: businessNewsError || 'Business News API data fetched successfully',
-          metadata: { api: 'business_news_api' }
-        }
-      ])
-
-    // Create content summary
+    // Create market content summary
     let content = 'Market Update: '
-    const marketInfo = []
+    const marketSummary = []
 
-    if (yahooData?.quoteResponse?.result) {
-      yahooData.quoteResponse.result.forEach((quote: any) => {
-        const symbol = quote.symbol
-        const price = quote.regularMarketPrice
-        const change = quote.regularMarketChangePercent
-        if (symbol && price && change) {
-          marketInfo.push(`${symbol}: $${price} (${change > 0 ? '+' : ''}${change.toFixed(2)}%)`)
+    if (marketData) {
+      for (const [symbol, data] of Object.entries(marketData)) {
+        const quote = data as any
+        const price = quote['05. price']
+        const change = quote['09. change']
+        const changePercent = quote['10. change percent']
+        
+        if (price && change) {
+          const changeDirection = parseFloat(change) >= 0 ? '+' : ''
+          marketSummary.push(`${symbol}: $${price} (${changeDirection}${change.toFixed(2)}%, ${changePercent.toFixed(2)}%)`)
         }
-      })
+      }
     }
 
-    if (businessNewsData?.articles) {
-      const businessHeadlines = businessNewsData.articles.slice(0, 2).map((article: any) => article.title)
-      marketInfo.push(`Business News: ${businessHeadlines.join('. ')}`)
-    }
-
-    if (marketInfo.length > 0) {
-      content += marketInfo.join('. ')
+    if (marketSummary.length > 0) {
+      content += marketSummary.join('. ')
     } else {
-      content += 'No market data available'
+      content += 'Market data unavailable'
     }
 
     // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'markets',
-      date: utcDate,
+      date: utcDateStr,
       content: content,
       parameters: {
-        yahoo_data: yahooData,
-        business_news_data: businessNewsData,
-        yahoo_error: yahooError,
-        business_news_error: businessNewsError,
-        market_info: marketInfo
+        market_data: marketData,
+        market_error: marketError,
+        market_summary: marketSummary
       },
-      status: (yahooError && businessNewsError) ? 'content_failed' : 'content_ready',
+      status: marketError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.CONTENT_READY,
       content_priority: 5,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -153,24 +133,28 @@ serve(async (req) => {
     if (error) {
       throw error
     }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
     // Log successful content generation
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: 'content_generated',
-        status: 'success',
-        message: 'Markets content generated successfully',
-        content_block_id: data.id,
-        metadata: { content_type: 'markets', date: utcDate }
-      })
+    try {
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'content_generated',
+          status: 'success',
+          message: 'Markets content generated successfully',
+          content_block_id: data.id,
+          metadata: { content_type: 'markets', date: utcDateStr }
+        })
+    } catch (logError) {
+      safeLogError('Failed to log successful generation:', logError)
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         content_block: data,
-        yahoo_error: yahooError,
-        business_news_error: businessNewsError
+        market_error: marketError
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

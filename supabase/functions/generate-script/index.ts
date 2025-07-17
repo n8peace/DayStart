@@ -1,41 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 import { generateFullPrompt, PromptParameters, getPromptForContentType, isValidContentType } from './prompts.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  user_id?: string
-  content_type: string
-  date: string
-  content?: string
-  script?: string
-  audio_url?: string
-  status: string
-  voice?: string
-  duration_seconds?: number
-  retry_count: number
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  parameters?: any
-  created_at: string
-  updated_at: string
-  script_generated_at?: string
-  audio_generated_at?: string
-}
-
-interface LogEntry {
-  event_type: string
-  status: string
-  message: string
-  metadata?: any
-  content_block_id?: string
-}
 
 interface GPT4oResponse {
   choices: Array<{
@@ -55,17 +25,6 @@ function isValidVoice(voice: string): voice is 'voice_1' | 'voice_2' | 'voice_3'
   return VALID_VOICES.includes(voice)
 }
 
-// Helper function to safely log errors
-async function safeLogError(supabaseClient: any, logData: Partial<LogEntry>): Promise<void> {
-  try {
-    await supabaseClient
-      .from('logs')
-      .insert(logData)
-  } catch (logError) {
-    console.error('Failed to log error:', logError)
-  }
-}
-
 // Helper function to validate content block before processing
 function validateContentBlock(contentBlock: ContentBlock): { valid: boolean; errors: string[] } {
   const errors: string[] = []
@@ -81,7 +40,7 @@ function validateContentBlock(contentBlock: ContentBlock): { valid: boolean; err
   }
 
   // Validate status
-  if (contentBlock.status !== 'content_ready') {
+  if (contentBlock.status !== ContentBlockStatus.CONTENT_READY) {
     errors.push(`Invalid status for processing: ${contentBlock.status}`)
   }
 
@@ -234,7 +193,7 @@ async function processContentBlock(
       throw new Error(`Content block ${contentBlock.id} not found`)
     }
 
-    if (currentBlock.status !== 'content_ready') {
+    if (currentBlock.status !== ContentBlockStatus.CONTENT_READY) {
       throw new Error(`Content block ${contentBlock.id} is not in content_ready status (current: ${currentBlock.status})`)
     }
 
@@ -242,12 +201,12 @@ async function processContentBlock(
     const { error: updateError } = await supabaseClient
       .from('content_blocks')
       .update({ 
-        status: 'script_generating', 
+        status: ContentBlockStatus.SCRIPT_GENERATING, 
         updated_at: new Date().toISOString(),
         retry_count: contentBlock.retry_count
       })
       .eq('id', contentBlock.id)
-      .eq('status', 'content_ready') // Optimistic locking
+      .eq('status', ContentBlockStatus.CONTENT_READY) // Optimistic locking
       .eq('updated_at', currentBlock.updated_at)
 
     if (updateError) {
@@ -280,7 +239,7 @@ async function processContentBlock(
           .from('content_blocks')
           .update({
             script: result.script,
-            status: 'script_generated',
+            status: ContentBlockStatus.SCRIPT_GENERATED,
             script_generated_at: now,
             updated_at: now,
             retry_count: 0,
@@ -313,7 +272,7 @@ async function processContentBlock(
         const { error: updateError } = await supabaseClient
           .from('content_blocks')
           .update({
-            status: 'script_failed',
+            status: ContentBlockStatus.SCRIPT_FAILED,
             updated_at: new Date().toISOString(),
             retry_count: MAX_RETRIES
           })
@@ -354,7 +313,7 @@ async function processContentBlock(
           .from('content_blocks')
           .update({
             script: results[0].script,
-            status: 'script_generated',
+            status: ContentBlockStatus.SCRIPT_GENERATED,
             script_generated_at: now,
             updated_at: now,
             retry_count: 0,
@@ -386,7 +345,7 @@ async function processContentBlock(
         const { error: updateError } = await supabaseClient
           .from('content_blocks')
           .update({
-            status: 'script_failed',
+            status: ContentBlockStatus.SCRIPT_FAILED,
             updated_at: new Date().toISOString(),
             retry_count: MAX_RETRIES
           })
@@ -427,7 +386,7 @@ async function processContentBlock(
             date: contentBlock.date,
             content: contentBlock.content,
             script: result.script,
-            status: 'script_generated',
+            status: ContentBlockStatus.SCRIPT_GENERATED,
             voice: voice,
             retry_count: 0,
             content_priority: contentBlock.content_priority,
@@ -522,7 +481,7 @@ async function processBatch(supabaseClient: any): Promise<{
     const { data: contentBlocks, error: fetchError } = await supabaseClient
       .from('content_blocks')
       .select('*')
-      .eq('status', 'content_ready')
+      .eq('status', ContentBlockStatus.CONTENT_READY)
       .order('content_priority', { ascending: true })
       .order('created_at', { ascending: true })
       .limit(BATCH_SIZE)
@@ -608,7 +567,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
     const { data: contentBlocks, error: fetchError } = await supabaseClient
       .from('content_blocks')
       .select('*')
-      .eq('status', 'content_ready')
+      .eq('status', ContentBlockStatus.CONTENT_READY)
       .order('content_priority', { ascending: true })
       .order('created_at', { ascending: true })
       .limit(BATCH_SIZE)
@@ -642,11 +601,11 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
         const { error: updateError } = await supabaseClient
           .from('content_blocks')
           .update({ 
-            status: 'script_generating', 
+            status: ContentBlockStatus.SCRIPT_GENERATING, 
             updated_at: new Date().toISOString()
           })
           .eq('id', contentBlock.id)
-          .eq('status', 'content_ready') // Optimistic locking
+          .eq('status', ContentBlockStatus.CONTENT_READY) // Optimistic locking
 
         if (updateError) {
           console.error(`Failed to mark ${contentBlock.id} as processing:`, updateError)
@@ -666,7 +625,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
         await supabaseClient
           .from('content_blocks')
           .update({ 
-            status: 'script_failed',
+            status: ContentBlockStatus.SCRIPT_FAILED,
             updated_at: new Date().toISOString(),
             retry_count: (contentBlock.retry_count || 0) + 1
           })
@@ -707,98 +666,42 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Handle health check requests - more explicit handling
-  const url = new URL(req.url)
-  console.log('🔍 URL pathname:', url.pathname)
-  
-  if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
-    console.log('🔍 Handling health check request')
-    try {
-      const response = {
-        status: 'healthy',
-        function: 'generate-script',
-        timestamp: new Date().toISOString()
-      }
-      console.log('🔍 Health check response:', response)
-      return new Response(
-        JSON.stringify(response),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200
-        }
-      )
-    } catch (healthError) {
-      console.error('🔍 Health check error:', healthError)
-      return new Response(
-        JSON.stringify({
-          status: 'error',
-          function: 'generate-script',
-          error: healthError.message,
-          timestamp: new Date().toISOString()
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        }
-      )
-    }
-  }
-
-  // Validate HTTP method for non-health check requests
-  if (req.method !== 'POST') {
-    console.log('🔍 Invalid method:', req.method)
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: `Method ${req.method} not allowed. Use POST.` 
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 405 
-      }
-    )
-  }
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
 
   try {
-    console.log('🔍 Starting main function logic')
-    
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    
-    console.log('🔍 Supabase URL exists:', !!supabaseUrl)
-    console.log('🔍 Supabase Service Key exists:', !!supabaseServiceKey)
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('🔍 Missing Supabase configuration')
-      throw new Error('Missing Supabase configuration')
+    const utcDateStr = utcDate()
+    const expirationDate = new Date(utcDateStr)
+    expirationDate.setHours(expirationDate.getHours() + 72)
+    const expirationDateStr = expirationDate.toISOString().split('T')[0]
+
+    // Fetch content blocks that need script generation
+    const { data: contentBlocks, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('*')
+      .eq('date', utcDateStr)
+      .eq('status', ContentBlockStatus.CONTENT_READY)
+      .not('script', 'is', null)
+      .order('content_priority', { ascending: true })
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch content blocks: ${fetchError.message}`)
     }
 
-    console.log('🔍 Creating Supabase client')
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
-    console.log('🔍 Supabase client created successfully')
-
-    // Check if this is a cron job request (immediate response needed)
-    const isCronJob = req.headers.get('user-agent')?.includes('cron-job.org') || 
-                     req.headers.get('x-cron-job') === 'true'
-
-    if (isCronJob) {
-      console.log('🕐 Cron job detected - starting async processing')
-      try {
-        // Start async processing without waiting
-        processBatchAsync(supabaseClient).catch(error => {
-          console.error('🔄 Async processing error:', error)
-        })
-      } catch (asyncError) {
-        // Log but do not fail the HTTP response
-        console.error('🔄 Error launching async batch:', asyncError)
-      }
-      // Return immediate success response (always 200)
+    if (!contentBlocks || contentBlocks.length === 0) {
       return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Script generation batch initiated asynchronously',
-          timestamp: new Date().toISOString()
+        JSON.stringify({ 
+          success: true, 
+          message: 'No content blocks need script generation',
+          processed_count: 0
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -807,75 +710,176 @@ serve(async (req) => {
       )
     }
 
-         // For non-cron requests, process synchronously (for manual testing)
-     console.log('🔍 Processing synchronously for manual request')
-     const result = await processBatch(supabaseClient)
+    const results = []
+    const errors = []
+    // Process each content block
+    for (const contentBlock of contentBlocks) {
+      try {
+        validateObjectShape(contentBlock, ['id', 'content_type', 'content', 'status'])
 
-    // Log batch completion
-    await safeLogError(supabaseClient, {
-      event_type: 'script_generation_batch_complete',
-      status: result.success ? 'success' : 'partial_success',
-      message: `Script generation batch completed: ${result.processedCount} processed, ${result.totalErrors} errors`,
-      metadata: {
-        processed_count: result.processedCount,
-        error_count: result.totalErrors,
-        batch_size: BATCH_SIZE
+        // Generate script using GPT-4
+        let scriptContent = null
+        let gptError = null
+        try {
+          const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+          if (openaiApiKey) {
+                         const prompt = generateFullPrompt(contentBlock.content_type, contentBlock.content, contentBlock.parameters || {})
+            const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: 'gpt-4',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are a professional voice script writer who creates natural, conversational scripts for morning briefings.'
+                  },
+                  {
+                    role: 'user',
+                    content: prompt
+                  }
+                ],
+                max_tokens: 300,
+                temperature: 0.7
+              }),
+              signal: AbortSignal.timeout(15 * 1000)
+            })
+
+            if (gptResponse.ok) {
+              const gptData = await gptResponse.json()
+              if (gptData.choices && gptData.choices[0]?.message?.content) {
+                scriptContent = gptData.choices[0].message.content.trim()
+              } else {
+                gptError = 'Invalid GPT response format'
+              }
+            } else {
+              gptError = `OpenAI API failed: ${gptResponse.status}`
+            }
+          } else {
+            gptError = 'OpenAI API key not configured'
+          }
+        } catch (error) {
+          if (error.name === TimeoutError) {
+            gptError = 'OpenAI API request timed out'
+          } else {
+            gptError = `OpenAI API error: ${error.message}`
+          }
+        }
+
+        // Update content block with script
+        const { data: updatedBlock, error: updateError } = await supabaseClient
+          .from('content_blocks')
+          .update({
+            script: scriptContent || contentBlock.content, // Fallback to original content
+            status: gptError ? ContentBlockStatus.CONTENT_FAILED : ContentBlockStatus.SCRIPT_GENERATED,
+            parameters: {
+              ...contentBlock.parameters,
+              script_generated: !!scriptContent,
+              gpt_error: gptError,
+              fallback_used: !scriptContent
+            }
+          })
+          .eq('id', contentBlock.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          throw updateError
+        }
+        validateObjectShape(updatedBlock, ['id', 'script', 'status'])
+
+        results.push(updatedBlock)
+
+        // Log successful script generation
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'script_generated',
+              status: 'success',
+              message: `Script generated for ${contentBlock.content_type}`,
+              content_block_id: contentBlock.id,
+              metadata: { 
+                content_type: contentBlock.content_type, 
+                date: utcDateStr,
+                gpt_error: gptError
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log script generation:', logError)
+        }
+
+      } catch (error) {
+        console.error(`Error processing content block ${contentBlock.id}:`, error)
+        errors.push(`Content block ${contentBlock.id}: ${error.message}`)
+
+        // Log individual processing error
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'script_generation_failed',
+              status: 'error',
+              message: `Script generation failed for content block ${contentBlock.id}: ${error.message}`,
+              content_block_id: contentBlock.id,
+              metadata: { 
+                content_type: contentBlock.content_type,
+                error: error.toString() 
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log script generation error:', logError)
+        }
       }
-    })
+    }
 
     return new Response(
-      JSON.stringify({
-        success: result.success,
-        processed_count: result.processedCount,
-        error_count: result.totalErrors,
-        errors: result.errors
+      JSON.stringify({ 
+        success: true, 
+        content_blocks: results,
+        total_processed: contentBlocks.length,
+        successful: results.length,
+        errors: errors
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: result.success ? 200 : 207 // 207 Multi-Status for partial success
+        status: 200 
       }
     )
 
   } catch (error) {
-    console.error('🔍 Error in generate-script function:', error)
-    console.error('🔍 Error stack:', error.stack)
-    console.error('🔍 Error name:', error.name)
-    console.error('🔍 Error message:', error.message)
+    console.error('Error generating scripts:', error)
 
-    // Log error to logs table with safe error handling
+    // Log error
     try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
       
-      if (supabaseUrl && supabaseServiceKey) {
-        const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
-        
-        await safeLogError(supabaseClient, {
-          event_type: 'script_generation_batch_failed',
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'script_generation_failed',
           status: 'error',
-          message: `Script generation batch failed: ${error.message}`,
-          metadata: { 
-            error: error.toString(),
-            errorType: error.name,
-            batch_size: BATCH_SIZE
-          }
+          message: `Script generation failed: ${error.message}`,
+          metadata: { error: error.toString() }
         })
-      }
     } catch (logError) {
-      console.error('🔍 Failed to log error to database:', logError)
+      console.error('Failed to log error:', logError)
     }
 
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-        errorType: error.name,
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+        status: 500      }
     )
   }
 }) 

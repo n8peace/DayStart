@@ -1,40 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  user_id?: string
-  content_type: string
-  date: string
-  content?: string
-  script?: string
-  audio_url?: string
-  status: string
-  voice?: string
-  duration_seconds?: number
-  retry_count: number
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  parameters?: any
-  created_at: string
-  updated_at: string
-  script_generated_at?: string
-  audio_generated_at?: string
-}
-
-interface LogEntry {
-  event_type: string
-  status: string
-  message: string
-  metadata?: any
-  content_block_id?: string
-}
+import { ContentBlock } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 interface CleanupResult {
   stuckBlocksFound: number
@@ -46,17 +16,6 @@ interface CleanupResult {
 // Configuration
 const STUCK_TIMEOUT_HOURS = 1 // 1 hour timeout
 const BATCH_SIZE = 50 // Process in batches to avoid timeouts
-
-// Helper function to safely log errors
-async function safeLogError(supabaseClient: any, logData: Partial<LogEntry>): Promise<void> {
-  try {
-    await supabaseClient
-      .from('logs')
-      .insert(logData)
-  } catch (logError) {
-    console.error('Failed to log error:', logError)
-  }
-}
 
 // Helper function to map stuck status to failure status
 function mapStuckStatusToFailureStatus(stuckStatus: string): string {
@@ -102,7 +61,7 @@ async function cleanupStuckContentBlocks(
 
   try {
     // Calculate the cutoff time (1 hour ago)
-    const cutoffTime = new Date(Date.now() - (STUCK_TIMEOUT_HOURS * 60 * 60 * 1000)).toISOString()
+    const cutoffTime = utcDate(STUCK_TIMEOUT_HOURS * -1)
 
     // Find stuck content blocks
     const { data: stuckBlocks, error: fetchError } = await supabaseClient
@@ -160,7 +119,7 @@ async function cleanupStuckContentBlocks(
         .from('content_blocks')
         .update({
           status: failureStatus,
-          updated_at: new Date().toISOString(),
+          updated_at: utcDate(),
           retry_count: 0 // Reset retry count since we're giving up
         })
         .in('id', blockIds)
@@ -241,87 +200,175 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ])
+
   try {
-    // Get Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration')
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const currentDate = utcDate()
+    const cutoffDate = new Date()
+    cutoffDate.setHours(cutoffDate.getHours() - 24) // 24 hours ago
+
+    // Find content blocks that are stuck in processing states
+    const { data: stuckBlocks, error: fetchError } = await supabaseClient
+      .from('content_blocks')
+      .select('*')
+      .in('status', [ContentBlockStatus.CONTENT_GENERATING, ContentBlockStatus.SCRIPT_GENERATING, ContentBlockStatus.AUDIO_GENERATING])
+      .lt('updated_at', cutoffDate.toISOString())
+      .order('updated_at', { ascending: true })
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch stuck content blocks: ${fetchError.message}`)
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+    if (!stuckBlocks || stuckBlocks.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No stuck content blocks found',
+          cleaned_count: 0
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200        }
+      )
+    }
 
-    // Log cleanup start
-    await safeLogError(supabaseClient, {
-      event_type: 'cleanup_stuck_content_started',
-      status: 'info',
-      message: 'Starting stuck content cleanup process',
-      metadata: {
-        stuck_timeout_hours: STUCK_TIMEOUT_HOURS,
-        batch_size: BATCH_SIZE,
-        request_method: req.method
+    const cleanedBlocks = []
+    const errors = []
+    // Process each stuck block
+    for (const block of stuckBlocks) {
+      try {
+        validateObjectShape(block, ['id', 'content_type', 'status', 'updated_at'])
+
+        // Determine appropriate status based on current status
+        let newStatus = ContentBlockStatus.FAILED
+        if (block.status === ContentBlockStatus.CONTENT_GENERATING) {
+          newStatus = ContentBlockStatus.CONTENT_FAILED
+        } else if (block.status === ContentBlockStatus.SCRIPT_GENERATING) {
+          newStatus = ContentBlockStatus.SCRIPT_FAILED
+        } else if (block.status === ContentBlockStatus.AUDIO_GENERATING) {
+          newStatus = ContentBlockStatus.AUDIO_FAILED
+        }
+
+        // Update the stuck block
+        const { data: updatedBlock, error: updateError } = await supabaseClient
+          .from('content_blocks')
+          .update({
+            status: newStatus,
+            parameters: {
+              ...block.parameters,
+              stuck_cleanup: true,
+              original_status: block.status,
+              cleanup_timestamp: new Date().toISOString()
+            }
+          })
+          .eq('id', block.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          throw updateError
+        }
+        validateObjectShape(updatedBlock, ['id', 'status'])
+
+        cleanedBlocks.push(updatedBlock)
+
+        // Log cleanup action
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'stuck_content_cleaned',
+              status: 'success',
+              message: `Stuck content block ${block.id} cleaned from ${block.status} to ${newStatus}`,
+              content_block_id: block.id,
+              metadata: {
+                content_type: block.content_type,
+                original_status: block.status,
+                new_status: newStatus,
+                stuck_duration_hours: Math.round((Date.now() - new Date(block.updated_at).getTime()) / (1000 * 60 * 60))
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log cleanup action:', logError)
+        }
+
+      } catch (error) {
+        console.error(`Error cleaning stuck block ${block.id}:`, error)
+        errors.push(`Block ${block.id}: ${error.message}`)
+
+        // Log cleanup error
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'stuck_content_cleanup_failed',
+              status: 'error',
+              message: `Failed to clean stuck content block ${block.id}: ${error.message}`,
+              content_block_id: block.id,
+              metadata: {
+                content_type: block.content_type,
+                error: error.toString() 
+              }
+            })
+        } catch (logError) {
+          safeLogError('Failed to log cleanup error:', logError)
+        }
       }
-    })
+    }
 
-    // Perform cleanup
-    const result = await cleanupStuckContentBlocks(supabaseClient)
-
-    // Return response
     return new Response(
-      JSON.stringify({
-        success: result.errors.length === 0,
-        stuck_blocks_found: result.stuckBlocksFound,
-        blocks_cleaned: result.blocksCleaned,
-        error_count: result.errors.length,
-        errors: result.errors,
-        status_breakdown: result.statusBreakdown,
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        success: true, 
+        cleaned_blocks: cleanedBlocks,
+        total_found: stuckBlocks.length,
+        successful: cleanedBlocks.length,
+        errors: errors
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: result.errors.length === 0 ? 200 : 207 // 207 Multi-Status for partial success
+        status: 200 
       }
     )
 
   } catch (error) {
-    console.error('Error in cleanup-stuck-content function:', error)
-    
-    // Log error to database
+    console.error('Error cleaning stuck content:', error)
+
+    // Log error
     try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
       
-      if (supabaseUrl && supabaseServiceKey) {
-        const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
-        
-        await safeLogError(supabaseClient, {
-          event_type: 'cleanup_stuck_content_function_failed',
+      await supabaseClient
+        .from('logs')
+        .insert({
+          event_type: 'stuck_content_cleanup_failed',
           status: 'error',
-          message: `Cleanup function failed: ${error.message}`,
-          metadata: { 
-            error: error.toString(),
-            errorType: error.name,
-            stuck_timeout_hours: STUCK_TIMEOUT_HOURS,
-            batch_size: BATCH_SIZE
-          }
+          message: `Stuck content cleanup failed: ${error.message}`,
+          metadata: { error: error.toString() }
         })
-      }
     } catch (logError) {
-      console.error('Failed to log error to database:', logError)
+      console.error('Failed to log error:', logError)
     }
 
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-        errorType: error.name,
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+        status: 500      }
     )
   }
 }) 

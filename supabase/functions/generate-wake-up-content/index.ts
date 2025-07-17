@@ -1,36 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface ContentBlock {
-  id: string
-  content_type: string
-  date: string
-  content?: string
-  parameters?: any
-  status: string
-  content_priority: number
-  expiration_date: string
-  language_code: string
-  created_at: string
-  updated_at: string
-}
-
-interface LogEntry {
-  event_type: string
-  status: string
-  message: string
-  metadata?: any
-}
+import { ContentBlock, LogEntry } from '../shared/types.ts'
+import { corsHeaders } from '../shared/config.ts'
+import { safeLogError, utcDate } from '../shared/utils.ts'
+import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
+import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Validate required environment variables
+  validateEnvVars([
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    // Calendarific is optional, but warn if missing
+  ])
 
   try {
     const supabaseClient = createClient(
@@ -38,57 +24,47 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get UTC dates for content generation
-    const utcDate = new Date().toISOString().split('T')[0]
-    const tomorrowUtc = new Date()
-    tomorrowUtc.setDate(tomorrowUtc.getDate() + 1)
-    const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
-    
-    // Get day of the week for tomorrow
-    const dayOfWeek = tomorrowUtc.toLocaleDateString('en-US', { weekday: 'long' })
-
-    // Get expiration date (72 hours from target date) in UTC
+    const tomorrowDate = utcDate(1)
+    const dayOfWeek = new Date(tomorrowDate).toLocaleDateString('en-US', { weekday: 'long' })
     const expirationDate = new Date(tomorrowDate)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
-
-    // Get yesterday's wake-up message to avoid repetition
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayDate = yesterday.toISOString().split('T')[0]
+    const yesterdayDate = utcDate(-1)
 
     let previousMessage = ''
     try {
-      const { data: previousData, error: previousError } = await supabaseClient
+      const { data: previousData } = await supabaseClient
         .from('content_blocks')
         .select('content')
         .eq('content_type', 'wake_up')
         .eq('date', yesterdayDate)
-        .in('status', ['ready', 'content_ready'])
-        .not('status', 'content_failed')
+        .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
+        .not('status', ContentBlockStatus.CONTENT_FAILED)
         .limit(1)
         .single()
-
       if (previousData) {
+        validateObjectShape(previousData, ['content'])
         previousMessage = previousData.content || ''
       }
     } catch (error) {
-      console.log('No previous wake-up message found or error:', error)
+      // No previous message found, ignore
     }
 
     // Fetch holiday data from Calendarific API
-    let holidayData = null
-    let holidayError = null
+    let holidayData: any = null
+    let holidayError: string | null = null
     try {
       const calendarificApiKey = Deno.env.get('CALENDARIFIC_API_KEY')
       if (calendarificApiKey) {
-        const currentYear = new Date().getFullYear()
         const [year, month, day] = tomorrowDate.split('-')
-        
-        const holidayResponse = await fetch(`https://calendarific.com/api/v2/holidays?api_key=${calendarificApiKey}&country=US&year=${currentYear}&month=${parseInt(month)}&day=${parseInt(day)}`)
+        const holidayResponse = await fetch(`https://calendarific.com/api/v2/holidays?api_key=${calendarificApiKey}&country=US&year=${year}&month=${parseInt(month)}&day=${parseInt(day)}`)
         if (holidayResponse.ok) {
           const responseData = await holidayResponse.json()
-          holidayData = responseData.response?.holidays || []
+          if (responseData && responseData.response && Array.isArray(responseData.response.holidays)) {
+            holidayData = responseData.response.holidays
+          } else {
+            holidayError = 'Malformed Calendarific response'
+          }
         } else {
           holidayError = `Calendarific API failed: ${holidayResponse.status}`
         }
@@ -99,17 +75,13 @@ serve(async (req) => {
       holidayError = `Calendarific API error: ${error.message}`
     }
 
-    // Log API call
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: 'api_call',
-        status: holidayError ? 'error' : 'success',
-        message: holidayError || 'Calendarific holiday data fetched successfully',
-        metadata: { api: 'calendarific_holiday', date: tomorrowDate }
-      })
+    await safeLogError(supabaseClient, {
+      event_type: 'api_call',
+      status: holidayError ? 'error' : 'success',
+      message: holidayError || 'Calendarific holiday data fetched successfully',
+      metadata: { api: 'calendarific_holiday', date: tomorrowDate }
+    })
 
-    // Create content block
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'wake_up',
       date: tomorrowDate,
@@ -119,7 +91,7 @@ serve(async (req) => {
         holiday_data: holidayData,
         holiday_error: holidayError
       },
-      status: 'content_ready', // Content ready after successful generation
+      status: ContentBlockStatus.CONTENT_READY,
       content_priority: 1,
       expiration_date: expirationDateStr,
       language_code: 'en-US'
@@ -134,17 +106,15 @@ serve(async (req) => {
     if (error) {
       throw error
     }
+    validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
-    // Log successful content generation
-    await supabaseClient
-      .from('logs')
-      .insert({
-        event_type: 'content_generated',
-        status: 'success',
-        message: 'Wake-up content generated successfully',
-        content_block_id: data.id,
-        metadata: { content_type: 'wake_up', date: tomorrowDate }
-      })
+    await safeLogError(supabaseClient, {
+      event_type: 'content_generated',
+      status: 'success',
+      message: 'Wake-up content generated successfully',
+      content_block_id: data.id,
+      metadata: { content_type: 'wake_up', date: tomorrowDate }
+    })
 
     return new Response(
       JSON.stringify({ 
@@ -160,26 +130,20 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error generating wake-up content:', error)
-
-    // Log error
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
-      
-      await supabaseClient
-        .from('logs')
-        .insert({
-          event_type: 'content_generation_failed',
-          status: 'error',
-          message: `Wake-up content generation failed: ${error.message}`,
-          metadata: { content_type: 'wake_up', error: error.toString() }
-        })
+      await safeLogError(supabaseClient, {
+        event_type: 'content_generation_failed',
+        status: 'error',
+        message: `Wake-up content generation failed: ${error.message}`,
+        metadata: { content_type: 'wake_up', error: error.toString() }
+      })
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
-
     return new Response(
       JSON.stringify({ 
         success: false, 

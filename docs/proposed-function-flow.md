@@ -1,8 +1,8 @@
-# DayStart Proposed Function Flow
+# DayStart Function Architecture
 
 ## 🎯 Overview
 
-This document outlines the proposed edge function architecture for DayStart's content generation system. The approach uses specialized content functions, unified script generation, and centralized audio processing.
+This document outlines the current edge function architecture for DayStart's content generation system. The approach uses specialized content functions, unified script generation, and centralized audio processing. (This is the live, implemented system.)
 
 ## 📋 Function Architecture
 
