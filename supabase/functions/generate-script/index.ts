@@ -379,7 +379,9 @@ async function processContentBlock(
         
         if (result.success && result.script) {
           // Create new row for this voice
-          const now = new Date().toISOString()
+          const now = new Date()
+          const createdAt = now.toISOString()
+          const scriptGeneratedAt = new Date(now.getTime() + 1000).toISOString() // Ensure script_generated_at > created_at
           const newContentBlock: Partial<ContentBlock> = {
             user_id: contentBlock.user_id,
             content_type: contentBlock.content_type,
@@ -393,9 +395,9 @@ async function processContentBlock(
             expiration_date: contentBlock.expiration_date,
             language_code: contentBlock.language_code,
             parameters: contentBlock.parameters,
-            created_at: now,
-            script_generated_at: now,
-            updated_at: now
+            created_at: createdAt,
+            script_generated_at: scriptGeneratedAt,
+            updated_at: scriptGeneratedAt
           }
 
           const { data: newRow, error: insertError } = await supabaseClient
