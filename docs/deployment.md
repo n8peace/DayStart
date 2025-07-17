@@ -11,7 +11,46 @@ DayStart uses a dual-environment deployment system with automated CI/CD pipeline
 
 ## 🚀 Quick Start (5 Minutes)
 
-### 1. **Enable GitHub Integration in Supabase**
+### 1. **Reliable Deployment Methods**
+
+#### Option A: Use the Deployment Script (Recommended)
+```bash
+# Run the automated deployment script
+./deploy.sh
+```
+
+This script will:
+- ✅ Check you're on the develop branch
+- ✅ Verify no uncommitted changes
+- ✅ Ensure you're up to date with remote
+- ✅ Push to develop branch
+- ✅ Trigger manual deployment
+- ✅ Provide monitoring links
+
+#### Option B: Manual GitHub Actions Trigger
+If automatic deployment isn't working, you can manually trigger deployments:
+
+```bash
+# Trigger manual deployment to develop
+gh workflow run "Deploy to Development" --ref develop
+
+# Check deployment status
+gh run list --workflow="deploy-develop.yml" --limit 5
+```
+
+**Manual Deployment Process:**
+1. **Push your changes** to the develop branch
+2. **Trigger manual workflow** using GitHub CLI or web interface
+3. **Monitor the deployment** in GitHub Actions tab
+4. **Verify the deployment** by checking Supabase function code
+
+**When to Use Manual Deployment:**
+- ✅ Automatic deployment isn't triggering
+- ✅ You need to force a deployment with latest code
+- ✅ Debugging deployment issues
+- ✅ Ensuring clean deployment state
+
+### 2. **Enable GitHub Integration in Supabase**
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Select your project
 3. Navigate to **Settings** → **GitHub**
@@ -72,6 +111,41 @@ graph LR
 5. After approval and merge, automatic deployment to develop environment
 
 ## 🚀 Daily Development Workflow
+
+### **Recommended Deployment Process**
+For reliable deployments, use the deployment script:
+
+```bash
+# 1. Make your changes
+# 2. Commit your changes
+git add .
+git commit -m "Your changes"
+
+# 3. Run the deployment script
+./deploy.sh
+```
+
+The deployment script will:
+- ✅ Verify you're on the develop branch
+- ✅ Check for uncommitted changes
+- ✅ Ensure you're up to date with remote
+- ✅ Push to develop branch
+- ✅ Trigger manual deployment
+- ✅ Provide monitoring links
+
+### **Alternative: Manual GitHub Actions**
+If you prefer manual control:
+
+```bash
+# 1. Push your changes
+git push origin develop
+
+# 2. Trigger deployment manually
+gh workflow run "Deploy to Development" --ref develop
+
+# 3. Monitor progress
+# Check: https://github.com/n8peace/DayStart/actions
+```
 
 ### **Iterative Development Process**
 The beauty of this setup is that you can iterate rapidly on `develop`:
@@ -236,6 +310,28 @@ Example: `20240101120000_create_users_table.sql`
 
 ### Common Issues
 
+#### Automatic Deployment Not Triggering
+**Issue**: Pushes to develop branch don't automatically trigger deployment
+**Symptoms**: 
+- GitHub Actions workflow doesn't run on push
+- Supabase functions show old code
+- No deployment notifications
+
+**Solutions**:
+1. **Check Workflow File**: Ensure `.github/workflows/deploy-develop.yml` exists and is properly configured
+2. **Verify Branch Name**: Ensure you're pushing to `develop` branch (not `main` or other branches)
+3. **Check Workflow Permissions**: Ensure workflow has proper permissions to run
+4. **Use Manual Deployment**: Trigger deployment manually as a workaround:
+   ```bash
+   gh workflow run "Deploy to Development" --ref develop
+   ```
+
+**Manual Deployment Verification**:
+- ✅ **GitHub Actions**: Check Actions tab for successful workflow runs
+- ✅ **Supabase Function Code**: Verify function shows latest changes
+- ✅ **Function Logs**: Check Supabase dashboard for execution logs
+- ✅ **Health Checks**: Verify functions respond correctly
+
 #### Source Code vs Compiled Code in Supabase Dashboard
 **Issue**: Code shown in Supabase Dashboard looks different from your repository
 **Explanation**: This is **expected behavior** - Supabase shows the compiled/transpiled JavaScript, not your TypeScript source code
@@ -344,7 +440,62 @@ supabase migration list
 
 # Validate project setup
 supabase projects list
+
+# Check deployment script
+./deploy.sh --help  # (if you add help functionality)
 ```
+
+## 🛠️ Deployment Script Reference
+
+### **deploy.sh**
+The deployment script automates the deployment process and includes safety checks.
+
+**Location**: `./deploy.sh` (in project root)
+
+**Usage**:
+```bash
+./deploy.sh
+```
+
+**What it does**:
+1. **Pre-deployment Checks**:
+   - Verifies you're on the `develop` branch
+   - Checks for uncommitted changes
+   - Ensures you're up to date with remote
+
+2. **Deployment Process**:
+   - Pushes to develop branch
+   - Triggers manual GitHub Actions workflow
+   - Provides monitoring links
+
+3. **Safety Features**:
+   - Exits on any error (`set -e`)
+   - Clear error messages
+   - Prevents deployment with uncommitted changes
+
+**Example Output**:
+```
+🚀 DayStart Deployment Script
+==============================
+✅ Pre-deployment checks passed
+📤 Pushing to develop branch...
+✅ Code pushed to develop branch
+🚀 Triggering manual deployment...
+✅ Deployment triggered successfully!
+
+📊 Monitor deployment progress:
+   https://github.com/n8peace/DayStart/actions
+
+🔍 Check Supabase function logs:
+   https://supabase.com/dashboard/project/[YOUR_PROJECT_ID]/functions
+
+🎉 Deployment initiated! Check the GitHub Actions tab for progress.
+```
+
+**Troubleshooting the Script**:
+- **"You must be on the develop branch"**: Run `git checkout develop`
+- **"You have uncommitted changes"**: Commit your changes first
+- **"Not up to date with remote"**: Run `git pull origin develop`
 
 ## 📈 Monitoring
 
