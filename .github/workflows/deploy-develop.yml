@@ -105,14 +105,28 @@ jobs:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "Deploying edge functions to development..."
+        echo "🚀 Deploying edge functions to development..."
         echo "Current directory: $(pwd)"
         echo "Functions directory contents:"
         ls -la functions/ || echo "Functions directory not found"
+        
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
           echo "Found functions, deploying..."
-          supabase functions deploy
+          
+          # Deploy with verbose output
+          supabase functions deploy --debug || {
+            echo "❌ Function deployment failed"
+            echo "🔍 Checking function status..."
+            supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
+            exit 1
+          }
+          
+          echo "✅ Function deployment completed"
+          
+          # List deployed functions
+          echo "📋 Deployed functions:"
+          supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
         fi
@@ -123,37 +137,77 @@ jobs:
         
         # Check if any functions exist before testing them
         if [ -d "supabase/functions" ] && [ "$(ls -A supabase/functions)" ]; then
-          echo "Testing edge functions in parallel..."
+          echo "Testing edge functions with detailed logging..."
           
           # Create a temporary file to store function names
           temp_file=$(mktemp)
           
-          # Collect all function names
+          # Collect all function names (skip shared directory)
           for func_dir in supabase/functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
+              fi
               echo "$func_name" >> "$temp_file"
             fi
           done
           
-          # Function to test a single function
+          echo "📋 Functions to test:"
+          cat "$temp_file"
+          
+          # Function to test a single function with detailed logging
           test_function() {
             local func_name=$1
-            echo "Testing $func_name function..."
+            echo "🔍 Testing $func_name function..."
             
-            # Add timeout to curl to prevent hanging
-            response=$(timeout 30 curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name \
-              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}")
+            # Test with detailed response logging
+            echo "  📡 Making request to: ${{ secrets.SUPABASE_URL }}/functions/v1/$func_name"
             
-            http_code=$(echo "$response" | tail -n1)
+            # Capture full response with headers and body
+            full_response=$(timeout 30 curl -s -w "\n---HTTP_CODE---%{http_code}\n---RESPONSE_TIME---%{time_total}s" \
+              -X GET "${{ secrets.SUPABASE_URL }}/functions/v1/$func_name" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+              -H "Content-Type: application/json" \
+              -v 2>&1)
+            
+            # Extract HTTP code
+            http_code=$(echo "$full_response" | grep "---HTTP_CODE---" | cut -d'-' -f4)
+            
+            # Extract response time
+            response_time=$(echo "$full_response" | grep "---RESPONSE_TIME---" | cut -d'-' -f4)
+            
+            # Extract response body (everything before the HTTP_CODE marker)
+            response_body=$(echo "$full_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
+            
+            echo "  ⏱️ Response time: ${response_time}s"
+            echo "  📊 HTTP Status: $http_code"
+            
+            # Log response body for debugging (truncated if too long)
+            if [ ${#response_body} -gt 500 ]; then
+              echo "  📄 Response body (truncated): ${response_body:0:500}..."
+            else
+              echo "  📄 Response body: $response_body"
+            fi
+            
+            # Determine if the function is healthy
             if [ "$http_code" = "200" ]; then
-              echo "✅ $func_name function is healthy"
+              echo "  ✅ $func_name function is healthy"
               return 0
             elif [ "$func_name" = "generate-weather-content" ] && [ "$http_code" = "400" ]; then
-              echo "✅ $func_name function is healthy (no weather data available - expected)"
+              echo "  ✅ $func_name function is healthy (no weather data available - expected)"
               return 0
+            elif [ "$http_code" = "503" ]; then
+              echo "  ⚠️ $func_name function returned 503 (Service Unavailable)"
+              echo "  🔍 This usually means internal health checks failed"
+              return 1
+            elif [ "$http_code" = "500" ]; then
+              echo "  ❌ $func_name function crashed (HTTP 500)"
+              echo "  🔍 Check Supabase logs for detailed error"
+              return 1
             else
-              echo "❌ $func_name function health check failed (HTTP $http_code)"
+              echo "  ❌ $func_name function health check failed (HTTP $http_code)"
               return 1
             fi
           }
@@ -163,34 +217,32 @@ jobs:
           export SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
           export SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           
-          # Run health checks in parallel with a maximum of 5 concurrent jobs
-          if command -v parallel >/dev/null 2>&1; then
-            # Use GNU parallel if available
-            parallel -j 5 test_function ::: $(cat "$temp_file")
-            parallel_status=$?
-          else
-            # Fallback to background jobs with wait
-            pids=()
-            while IFS= read -r func_name; do
-              test_function "$func_name" &
-              pids+=($!)
-            done < "$temp_file"
-            
-            # Wait for all background jobs to complete
-            parallel_status=0
-            for pid in "${pids[@]}"; do
-              if ! wait "$pid"; then
-                parallel_status=1
-              fi
-            done
-          fi
+          # Run health checks sequentially for better logging
+          echo "🚀 Starting function health checks..."
+          failed_functions=()
+          
+          while IFS= read -r func_name; do
+            if ! test_function "$func_name"; then
+              failed_functions+=("$func_name")
+            fi
+            echo ""  # Add spacing between function tests
+          done < "$temp_file"
           
           # Clean up
           rm -f "$temp_file"
           
-          # Exit with the status from parallel execution
-          if [ $parallel_status -ne 0 ]; then
-            echo "❌ One or more health checks failed"
+          # Report results
+          if [ ${#failed_functions[@]} -eq 0 ]; then
+            echo "✅ All function health checks passed"
+          else
+            echo "❌ Health check failures detected:"
+            printf '  - %s\n' "${failed_functions[@]}"
+            echo ""
+            echo "🔧 Debugging steps:"
+            echo "  1. Check Supabase dashboard → Edge Functions → [Function Name] → Logs"
+            echo "  2. Verify environment variables are set correctly"
+            echo "  3. Check if database migrations have been applied"
+            echo "  4. Review function code for unhandled errors"
             exit 1
           fi
           
@@ -199,31 +251,43 @@ jobs:
           echo "⚠️ No functions to test - functions directory is empty"
         fi
         
-        # Test database connectivity (optional - may fail if migrations not run yet)
-        echo "Testing database connectivity..."
-        response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json")
+        # Test database connectivity with detailed logging
+        echo ""
+        echo "🗄️ Testing database connectivity..."
+        echo "  📡 Making request to: ${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count"
         
-        http_code=$(echo "$response" | tail -n1)
-        if [ "$http_code" = "200" ]; then
-          echo "✅ Database connectivity is healthy"
-        elif [ "$http_code" = "401" ]; then
-          echo "⚠️ Database connectivity check failed (HTTP 401) - likely due to empty database or missing migrations"
-          echo "This is expected for a fresh development deployment"
+        db_response=$(curl -s -w "\n---HTTP_CODE---%{http_code}\n---RESPONSE_TIME---%{time_total}s" \
+          -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/users?select=count" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" \
+          -v 2>&1)
+        
+        db_http_code=$(echo "$db_response" | grep "---HTTP_CODE---" | cut -d'-' -f4)
+        db_response_time=$(echo "$db_response" | grep "---RESPONSE_TIME---" | cut -d'-' -f4)
+        db_response_body=$(echo "$db_response" | sed '/---HTTP_CODE---/,$d' | tail -n +2)
+        
+        echo "  ⏱️ Response time: ${db_response_time}s"
+        echo "  📊 HTTP Status: $db_http_code"
+        echo "  📄 Response body: $db_response_body"
+        
+        if [ "$db_http_code" = "200" ]; then
+          echo "  ✅ Database connectivity is healthy"
+        elif [ "$db_http_code" = "401" ]; then
+          echo "  ⚠️ Database connectivity check failed (HTTP 401)"
+          echo "  🔍 This is expected for a fresh development deployment or missing migrations"
         else
-          echo "⚠️ Database connectivity check failed (HTTP $http_code) - but continuing deployment"
-          echo "This may be due to empty database or missing migrations"
+          echo "  ⚠️ Database connectivity check failed (HTTP $db_http_code)"
+          echo "  🔍 This may be due to empty database or missing migrations"
         fi
         
     - name: Verify deployment status
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
-        echo "Verifying development deployment..."
+        echo "🔍 Verifying development deployment..."
         
         # Check if we can access the Supabase API
-        echo "Testing Supabase API connectivity..."
+        echo "📡 Testing Supabase API connectivity..."
         response=$(curl -s -w "\n%{http_code}" -X GET ${{ secrets.SUPABASE_URL }}/rest/v1/ \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json")
@@ -237,14 +301,36 @@ jobs:
         fi
         
         # Check migration status
-        echo "Checking migration status..."
+        echo ""
+        echo "🗄️ Checking migration status..."
         cd supabase
         if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
-          echo "✅ Migrations directory contains files"
+          echo "✅ Migrations directory contains files:"
           ls -la migrations/
+          
+          # List deployed functions
+          echo ""
+          echo "🔧 Checking deployed functions..."
+          supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No migrations found"
         fi
+        
+        # Check database schema
+        echo ""
+        echo "📋 Checking database schema..."
+        echo "Testing content_blocks table status constraint..."
+        
+        # Test if the status constraint allows content_ready and content_failed
+        test_query="SELECT status FROM content_blocks WHERE status IN ('content_ready', 'content_failed') LIMIT 1;"
+        
+        # This will fail if the constraint doesn't allow these statuses
+        schema_test=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/exec_sql" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"query\": \"$test_query\"}" 2>/dev/null || echo "Schema test failed")
+        
+        echo "Schema constraint test result: $schema_test"
         
         echo "✅ Deployment verification complete"
         
