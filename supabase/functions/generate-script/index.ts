@@ -658,6 +658,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
 }
 
 serve(async (req) => {
+  // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   console.log('🔍 generate-script function called')
   console.log('🔍 Request method:', req.method)
   console.log('🔍 Request URL:', req.url)

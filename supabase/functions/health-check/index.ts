@@ -8,6 +8,7 @@ import { runHealthChecks, HealthReport } from './health-checks.ts'
 import { sendHealthReportEmail } from './email-service.ts'
 
 serve(async (req) => {
+  // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   console.log('🔍 health-check function called')
   console.log('🔍 Request method:', req.method)
   console.log('🔍 Request URL:', req.url)

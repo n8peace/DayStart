@@ -7,6 +7,7 @@ import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
 import { ContentBlockStatus } from '../shared/status.ts'
 
 serve(async (req) => {
+  // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

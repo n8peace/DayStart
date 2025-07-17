@@ -251,6 +251,7 @@ async function processExpiredContentBlocks(supabaseClient: any): Promise<Cleanup
 
 // Main serve function
 serve(async (req) => {
+  // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })

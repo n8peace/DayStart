@@ -489,6 +489,7 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
 }
 
 serve(async (req) => {
+  // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
