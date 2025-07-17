@@ -62,7 +62,8 @@ serve(async (req) => {
   validateEnvVars([
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'RAPIDAPI_KEY'
+    'RAPIDAPI_KEY',
+    'NEWS_API_KEY'
   ])
 
   try {
@@ -244,9 +245,45 @@ serve(async (req) => {
       }
     }
 
+    // Fetch business news headlines for additional context
+    let businessNews: any = null
+    let newsError: string | null = null
+    
+    try {
+      const newsApiKey = Deno.env.get('NEWS_API_KEY')
+      if (newsApiKey) {
+        apiCallCount++
+        console.log('Making News API call for business headlines')
+        
+        const response = await fetch(`https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=${newsApiKey}&pageSize=3`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
+        
+        if (response.ok) {
+          businessNews = await response.json()
+          console.log('Successfully fetched business news')
+        } else {
+          newsError = `News API failed: ${response.status}`
+          console.error('News API failed:', response.status)
+        }
+      } else {
+        newsError = 'News API key not configured'
+      }
+    } catch (error: any) {
+      newsError = `News API error: ${error.message}`
+      console.error('News API error:', error)
+    }
+
     // Create market content summary with fallback for quota issues
     let content = 'Market Update: '
     const marketSummary = []
+    
+    // Symbol name mapping for user-friendly display
+    const symbolNames: Record<string, string> = {
+      '^GSPC': 'S&P 500',
+      '^DJI': 'Dow Jones',
+      '^TNX': '10-Year Treasury'
+    }
 
     if (marketData) {
       for (const [symbol, data] of Object.entries(marketData)) {
@@ -259,7 +296,8 @@ serve(async (req) => {
           const changeDirection = parseFloat(change) >= 0 ? '+' : ''
           const changeFormatted = parseFloat(change).toFixed(2)
           const percentFormatted = parseFloat(changePercent).toFixed(2)
-          marketSummary.push(`${symbol}: $${price} (${changeDirection}${changeFormatted}, ${percentFormatted}%)`)
+          const symbolName = symbolNames[symbol] || symbol
+          marketSummary.push(`${symbolName}: $${price} (${changeDirection}${changeFormatted}, ${percentFormatted}%)`)
         }
       }
     }
@@ -270,6 +308,15 @@ serve(async (req) => {
       content += 'Market data temporarily unavailable due to API quota limits. Please check back later.'
     } else {
       content += 'Market data unavailable'
+    }
+
+    // Add business news context if available
+    if (businessNews && businessNews.articles && businessNews.articles.length > 0) {
+      content += ' In business news: '
+      const headlines = businessNews.articles.slice(0, 2).map((article: any) => {
+        return article.title.split(' - ')[0] // Remove source from title
+      })
+      content += headlines.join('. ')
     }
 
     // Determine status based on quota issues and errors
@@ -293,6 +340,8 @@ serve(async (req) => {
         market_data: marketData,
         market_error: marketError,
         market_summary: marketSummary,
+        business_news: businessNews,
+        news_error: newsError,
         quota_exceeded: quotaExceeded,
         api_call_count: apiCallCount,
         execution_status: executionStatus
