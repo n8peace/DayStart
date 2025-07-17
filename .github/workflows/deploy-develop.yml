@@ -112,17 +112,28 @@ jobs:
         
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          echo "Found functions, deploying..."
+          echo "Found functions, deploying individually..."
           
-          # Deploy with verbose output
-          supabase functions deploy --debug || {
-            echo "❌ Function deployment failed"
-            echo "🔍 Checking function status..."
-            supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
-            exit 1
-          }
+          # Deploy each function individually
+          for func_dir in functions/*/; do
+            if [ -d "$func_dir" ]; then
+              func_name=$(basename "$func_dir")
+              if [ "$func_name" = "shared" ]; then
+                echo "⏭️ Skipping shared directory (not a function)"
+                continue
+              fi
+              echo "🚀 Deploying function: $func_name"
+              supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || {
+                echo "❌ Failed to deploy function: $func_name"
+                echo "🔍 Checking function status..."
+                supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
+                exit 1
+              }
+              echo "✅ Successfully deployed function: $func_name"
+            fi
+          done
           
-          echo "✅ Function deployment completed"
+          echo "✅ All function deployments completed"
           
           # List deployed functions
           echo "📋 Deployed functions:"
