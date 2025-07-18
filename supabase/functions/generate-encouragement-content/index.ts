@@ -73,6 +73,13 @@ serve(async (req) => {
     'SUPABASE_SERVICE_ROLE_KEY',
   ])
 
+  // Declare variables outside try block so they're accessible in catch block
+  let executionStatus = 'completed'
+  let apiCallCount = 0
+  let successfulGenerations = 0
+  let failedGenerations = 0
+  const generatedContentBlocks = []
+
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -83,12 +90,6 @@ serve(async (req) => {
     const expirationDate = new Date(utcDateStr)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
-
-    let executionStatus = 'completed'
-    let apiCallCount = 0
-    let successfulGenerations = 0
-    let failedGenerations = 0
-    const generatedContentBlocks = []
 
     // Generate encouragement content for each type
     for (const encouragementType of ENCOURAGEMENT_TYPES) {
