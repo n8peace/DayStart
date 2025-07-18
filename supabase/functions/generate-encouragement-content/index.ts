@@ -287,8 +287,8 @@ serve(async (req) => {
         success: true,
         content_blocks: generatedContentBlocks,
         execution_status: executionStatus,
-        successful_generations,
-        failed_generations,
+        successful_generations: successfulGenerations,
+        failed_generations: failedGenerations,
         api_call_count: apiCallCount
       }),
       {
