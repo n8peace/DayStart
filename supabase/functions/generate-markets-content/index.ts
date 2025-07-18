@@ -6,6 +6,294 @@ import { safeLogError, utcDate } from '../shared/utils.ts'
 import { validateEnvVars, validateObjectShape } from '../shared/validation.ts'
 import { ContentBlockStatus } from '../shared/status.ts'
 
+// Enhanced interfaces for market data processing
+interface MarketData {
+  symbol: string
+  price: number
+  change: number
+  changePercent: number
+  volume: number
+  marketCap: number
+  rawData: any
+}
+
+interface ProcessedBusinessArticle {
+  title: string
+  description: string
+  source: string
+  url: string
+  publishedAt: string
+  category: string
+  content: string
+  rawData: any
+}
+
+interface ScoredBusinessArticle {
+  article: ProcessedBusinessArticle
+  score: number
+  factors: {
+    sourceReliability: number
+    recency: number
+    marketRelevance: number
+    impact: number
+    contentQuality: number
+  }
+}
+
+interface MarketTrend {
+  overallDirection: 'bullish' | 'bearish' | 'neutral'
+  volatility: 'low' | 'medium' | 'high'
+  keyMovers: string[]
+  summary: string
+}
+
+// Market data importance scoring
+function calculateMarketDataImportance(marketData: MarketData): number {
+  let score = 0.5 // Base score
+  
+  // Volume-based scoring
+  if (marketData.volume > 1000000000) score += 0.2 // High volume
+  else if (marketData.volume > 500000000) score += 0.1 // Medium volume
+  
+  // Market cap weighting
+  if (marketData.marketCap > 1000000000000) score += 0.1 // Large cap
+  else if (marketData.marketCap > 10000000000) score += 0.05 // Mid cap
+  
+  // Change magnitude
+  const changePercent = Math.abs(marketData.changePercent)
+  if (changePercent > 5) score += 0.2 // Significant move
+  else if (changePercent > 2) score += 0.1 // Notable move
+  
+  return Math.max(0, Math.min(1, score))
+}
+
+// Business news category extraction
+function extractBusinessCategory(title: string, description: string): string {
+  const text = `${title} ${description}`.toLowerCase()
+  
+  const categories = {
+    earnings: ['earnings', 'quarterly', 'revenue', 'profit', 'loss', 'financial results', 'q1', 'q2', 'q3', 'q4'],
+    markets: ['stock', 'market', 'trading', 'investor', 'portfolio', 'investment', 'bull', 'bear'],
+    economy: ['economy', 'economic', 'gdp', 'inflation', 'interest rate', 'federal reserve', 'fed'],
+    corporate: ['company', 'ceo', 'executive', 'board', 'merger', 'acquisition', 'layoff', 'hiring'],
+    technology: ['tech', 'ai', 'software', 'digital', 'innovation', 'startup', 'funding'],
+    regulation: ['regulation', 'law', 'policy', 'government', 'compliance', 'legal'],
+    global: ['international', 'trade', 'tariff', 'global', 'foreign', 'export', 'import']
+  }
+  
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      return category
+    }
+  }
+  
+  return 'general'
+}
+
+// Business news source reliability (similar to headlines but focused on business sources)
+function getBusinessSourceReliabilityScore(sourceName: string): number {
+  const reliabilityScores = {
+    // High reliability business sources (0.9-1.0)
+    'Bloomberg': 0.95,
+    'Reuters': 0.95,
+    'The Wall Street Journal': 0.95,
+    'Financial Times': 0.95,
+    'CNBC': 0.9,
+    'MarketWatch': 0.9,
+    'Yahoo Finance': 0.85,
+    'Forbes': 0.85,
+    'Business Insider': 0.8,
+    'The Economist': 0.9,
+    
+    // General news sources with good business coverage
+    'Associated Press': 0.85,
+    'The New York Times': 0.85,
+    'The Washington Post': 0.85,
+    'USA Today': 0.8,
+    'CNN': 0.75,
+    'ABC News': 0.75,
+    'CBS News': 0.75,
+    'NBC News': 0.75,
+    
+    // Lower reliability
+    'Daily Mail': 0.5,
+    'Breitbart': 0.4,
+    'HuffPost': 0.6
+  }
+  
+  return reliabilityScores[sourceName] || 0.6
+}
+
+// Market relevance scoring for business news
+function calculateMarketRelevance(title: string, description: string): number {
+  const text = `${title} ${description}`.toLowerCase()
+  let relevance = 0.5 // Base score
+  
+  // High market relevance keywords
+  const highRelevance = [
+    'stock', 'market', 'trading', 'investor', 'earnings', 'revenue', 'profit',
+    's&p 500', 'dow jones', 'nasdaq', 'federal reserve', 'interest rate',
+    'inflation', 'gdp', 'economy', 'recession', 'bull market', 'bear market'
+  ]
+  
+  // Medium relevance keywords
+  const mediumRelevance = [
+    'company', 'business', 'corporate', 'ceo', 'executive', 'merger',
+    'acquisition', 'layoff', 'hiring', 'expansion', 'growth', 'decline'
+  ]
+  
+  highRelevance.forEach(term => {
+    if (text.includes(term)) relevance += 0.1
+  })
+  
+  mediumRelevance.forEach(term => {
+    if (text.includes(term)) relevance += 0.05
+  })
+  
+  return Math.max(0, Math.min(1, relevance))
+}
+
+// Calculate business article importance score
+function calculateBusinessArticleScore(article: ProcessedBusinessArticle): ScoredBusinessArticle {
+  const factors = {
+    sourceReliability: getBusinessSourceReliabilityScore(article.source),
+    recency: calculateRecencyScore(article.publishedAt),
+    marketRelevance: calculateMarketRelevance(article.title, article.description),
+    impact: calculateImpactScore(article.title, article.description),
+    contentQuality: calculateContentQuality(article.description, article.content)
+  }
+  
+  // Weighted average with emphasis on market relevance
+  const score = (
+    factors.sourceReliability * 0.15 +
+    factors.recency * 0.15 +
+    factors.marketRelevance * 0.35 +
+    factors.impact * 0.2 +
+    factors.contentQuality * 0.15
+  )
+  
+  return { article, score, factors }
+}
+
+// Market trend analysis
+function analyzeMarketTrends(marketData: Record<string, MarketData>): MarketTrend {
+  const symbols = Object.keys(marketData)
+  let bullishCount = 0
+  let bearishCount = 0
+  let totalChangePercent = 0
+  let maxChange = 0
+  let keyMovers: string[] = []
+  
+  symbols.forEach(symbol => {
+    const data = marketData[symbol]
+    const changePercent = data.changePercent
+    
+    totalChangePercent += changePercent
+    
+    if (changePercent > 0) bullishCount++
+    else if (changePercent < 0) bearishCount++
+    
+    if (Math.abs(changePercent) > Math.abs(maxChange)) {
+      maxChange = changePercent
+    }
+    
+    // Identify significant movers (>2% change)
+    if (Math.abs(changePercent) > 2) {
+      const symbolName = getSymbolDisplayName(symbol)
+      keyMovers.push(`${symbolName}: ${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`)
+    }
+  })
+  
+  const avgChange = totalChangePercent / symbols.length
+  const overallDirection = bullishCount > bearishCount ? 'bullish' : 
+                          bearishCount > bullishCount ? 'bearish' : 'neutral'
+  
+  // Determine volatility based on average change magnitude
+  const volatility = Math.abs(avgChange) > 3 ? 'high' : 
+                    Math.abs(avgChange) > 1 ? 'medium' : 'low'
+  
+  const summary = `Markets showing ${overallDirection} sentiment with ${volatility} volatility. Average change: ${avgChange > 0 ? '+' : ''}${avgChange.toFixed(2)}%`
+  
+  return {
+    overallDirection,
+    volatility,
+    keyMovers: keyMovers.slice(0, 3), // Top 3 movers
+    summary
+  }
+}
+
+// Utility functions (reused from headlines)
+function calculateRecencyScore(publishedAt: string): number {
+  if (!publishedAt) return 0.5
+  
+  const published = new Date(publishedAt)
+  const now = new Date()
+  const hoursDiff = (now.getTime() - published.getTime()) / (1000 * 60 * 60)
+  
+  if (hoursDiff <= 1) return 1.0
+  if (hoursDiff <= 6) return 0.9
+  if (hoursDiff <= 12) return 0.8
+  if (hoursDiff <= 24) return 0.7
+  if (hoursDiff <= 48) return 0.5
+  return 0.3
+}
+
+function calculateImpactScore(title: string, description: string): number {
+  const text = `${title} ${description}`.toLowerCase()
+  let impactScore = 0.5
+  
+  const highImpact = [
+    'breaking', 'urgent', 'crisis', 'emergency', 'announcement', 'decision',
+    'earnings', 'revenue', 'profit', 'loss', 'merger', 'acquisition',
+    'ceo', 'executive', 'federal reserve', 'interest rate', 'inflation'
+  ]
+  
+  const mediumImpact = [
+    'report', 'study', 'analysis', 'survey', 'announce', 'launch',
+    'increase', 'decrease', 'change', 'update', 'reveal'
+  ]
+  
+  highImpact.forEach(term => {
+    if (text.includes(term)) impactScore += 0.1
+  })
+  
+  mediumImpact.forEach(term => {
+    if (text.includes(term)) impactScore += 0.05
+  })
+  
+  return Math.max(0, Math.min(1, impactScore))
+}
+
+function calculateContentQuality(description: string, content: string): number {
+  const text = `${description} ${content}`.toLowerCase()
+  let qualityScore = 0.5
+  
+  if (text.length > 100) qualityScore += 0.1
+  if (text.length > 200) qualityScore += 0.1
+  
+  if (text.includes('according to') || text.includes('said') || text.includes('reported')) {
+    qualityScore += 0.1
+  }
+  
+  if (text.includes('percent') || text.includes('%') || text.includes('million') || text.includes('billion')) {
+    qualityScore += 0.1
+  }
+  
+  return Math.max(0, Math.min(1, qualityScore))
+}
+
+function getSymbolDisplayName(symbol: string): string {
+  const symbolNames: Record<string, string> = {
+    '^GSPC': 'S&P 500',
+    '^DJI': 'Dow Jones',
+    '^TNX': '10-Year Treasury',
+    '^IXIC': 'NASDAQ',
+    '^VIX': 'VIX',
+    '^RUT': 'Russell 2000'
+  }
+  return symbolNames[symbol] || symbol
+}
+
 serve(async (req) => {
   // Deployment trigger - Wed Jul 17 06:13:24 PDT 2025
   if (req.method === 'OPTIONS') {
@@ -205,8 +493,24 @@ serve(async (req) => {
         }
 
         if (Object.keys(marketResults).length > 0) {
-          marketData = marketResults
-          console.log('Successfully fetched market data:', Object.keys(marketResults))
+          // Enhanced market data processing
+          const processedMarketData: Record<string, MarketData> = {}
+          
+          for (const [symbol, data] of Object.entries(marketResults)) {
+            const quote = data as any
+            processedMarketData[symbol] = {
+              symbol: quote.symbol,
+              price: quote.price,
+              change: quote.change,
+              changePercent: quote.changePercent,
+              volume: quote.volume,
+              marketCap: quote.marketCap,
+              rawData: quote
+            }
+          }
+          
+          marketData = processedMarketData
+          console.log('Successfully fetched and processed market data:', Object.keys(marketData))
         } else if (quotaExceeded) {
           marketError = 'Yahoo Finance API quota exceeded - please increase quota or wait for reset'
         } else {
@@ -215,6 +519,25 @@ serve(async (req) => {
       } else {
         marketError = 'RapidAPI key not configured - using fallback content'
         console.warn('RAPIDAPI_KEY not configured, using fallback market content')
+        
+        // Log the missing API key configuration
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'api_call',
+              status: 'warning',
+              message: 'RapidAPI key not configured - using fallback market content',
+              metadata: { 
+                api: 'yahoo_finance_markets',
+                error: 'API key not configured',
+                has_fallback: true,
+                timestamp: new Date().toISOString()
+              }
+            })
+        } catch (logError) {
+          console.error('Failed to log missing API key:', logError)
+        }
       }
     } catch (error) {
       if (error.name === 'TimeoutError') {
@@ -260,8 +583,46 @@ serve(async (req) => {
         })
         
         if (response.ok) {
-          businessNews = await response.json()
-          console.log('Successfully fetched business news')
+          const rawBusinessNews = await response.json()
+          
+          // Enhanced business news processing
+          if (rawBusinessNews.articles && rawBusinessNews.articles.length > 0) {
+            const processedArticles: ProcessedBusinessArticle[] = []
+            
+            rawBusinessNews.articles.slice(0, 8).forEach((article: any) => {
+              const processed: ProcessedBusinessArticle = {
+                title: article.title || '',
+                description: article.description || article.content || '',
+                source: article.source?.name || 'Unknown',
+                url: article.url || '',
+                publishedAt: article.publishedAt || '',
+                category: extractBusinessCategory(article.title || '', article.description || ''),
+                content: article.content?.substring(0, 200) || '',
+                rawData: article
+              }
+              processedArticles.push(processed)
+            })
+            
+            // Score and rank articles
+            const scoredArticles = processedArticles.map(article => calculateBusinessArticleScore(article))
+            const topArticles = scoredArticles
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3)
+            
+            businessNews = {
+              rawData: rawBusinessNews,
+              processedArticles: processedArticles,
+              scoredArticles: scoredArticles,
+              topArticles: topArticles,
+              averageScore: topArticles.length > 0 ? 
+                topArticles.reduce((sum, a) => sum + a.score, 0) / topArticles.length : 0
+            }
+            
+            console.log(`Successfully processed ${processedArticles.length} business articles, selected top ${topArticles.length}`)
+          } else {
+            businessNews = { rawData: rawBusinessNews, processedArticles: [], scoredArticles: [], topArticles: [], averageScore: 0 }
+            console.log('No business articles found in response')
+          }
         } else {
           newsError = `News API failed: ${response.status}`
           console.error('News API failed:', response.status)
@@ -269,57 +630,103 @@ serve(async (req) => {
       } else {
         newsError = 'News API key not configured - skipping business news'
         console.warn('NEWS_API_KEY not configured, skipping business news')
+        
+        // Log the missing News API key configuration
+        try {
+          await supabaseClient
+            .from('logs')
+            .insert({
+              event_type: 'api_call',
+              status: 'warning',
+              message: 'News API key not configured - skipping business news',
+              metadata: { 
+                api: 'news_api_business',
+                error: 'API key not configured',
+                has_fallback: true,
+                timestamp: new Date().toISOString()
+              }
+            })
+        } catch (logError) {
+          console.error('Failed to log missing News API key:', logError)
+        }
       }
     } catch (error: any) {
       newsError = `News API error: ${error.message}`
       console.error('News API error:', error)
     }
 
-    // Create market content summary with fallback for quota issues
+    // Enhanced market content generation with trend analysis
     let content = 'Market Update: '
-    const marketSummary = []
-    
-    // Symbol name mapping for user-friendly display
-    const symbolNames: Record<string, string> = {
-      '^GSPC': 'S&P 500',
-      '^DJI': 'Dow Jones',
-      '^TNX': '10-Year Treasury'
-    }
+    const marketSummary: Array<{
+      symbol: string
+      price: number
+      change: number
+      changePercent: number
+      importance: number
+      formatted: string
+    }> = []
+    let marketTrends: MarketTrend | null = null
 
     if (marketData) {
+      // Analyze market trends
+      marketTrends = analyzeMarketTrends(marketData as Record<string, MarketData>)
+      
+      // Create detailed market summary with importance scoring
       for (const [symbol, data] of Object.entries(marketData)) {
-        const quote = data as any
-        const price = quote.price
-        const change = quote.change
-        const changePercent = quote.changePercent
+        const marketDataItem = data as MarketData
+        const price = marketDataItem.price
+        const change = marketDataItem.change
+        const changePercent = marketDataItem.changePercent
         
         if (price && change !== undefined) {
-          const changeDirection = parseFloat(change) >= 0 ? '+' : ''
-          const changeFormatted = parseFloat(change).toFixed(2)
-          const percentFormatted = parseFloat(changePercent).toFixed(2)
-          const symbolName = symbolNames[symbol] || symbol
-          marketSummary.push(`${symbolName}: $${price} (${changeDirection}${changeFormatted}, ${percentFormatted}%)`)
+          const changeDirection = change >= 0 ? '+' : ''
+          const changeFormatted = change.toFixed(2)
+          const percentFormatted = changePercent.toFixed(2)
+          const symbolName = getSymbolDisplayName(symbol)
+          const importance = calculateMarketDataImportance(marketDataItem)
+          
+          marketSummary.push({
+            symbol: symbolName,
+            price: price,
+            change: change,
+            changePercent: changePercent,
+            importance: importance,
+            formatted: `${symbolName}: $${price} (${changeDirection}${changeFormatted}, ${percentFormatted}%)`
+          })
         }
       }
-    }
-
-    if (marketSummary.length > 0) {
-      content += marketSummary.join('. ')
+      
+      // Sort by importance and create content
+      marketSummary.sort((a, b) => b.importance - a.importance)
+      
+      if (marketSummary.length > 0) {
+        content += `Live market data: ${marketSummary.map(m => m.formatted).join('. ')}. `
+        content += marketTrends.summary
+      }
     } else if (quotaExceeded) {
-      content += 'Market data temporarily unavailable due to API quota limits. Please check back later.'
+      content += 'Live market data temporarily unavailable due to API quota limits. Using fallback content.'
+    } else if (marketError && marketError.includes('RapidAPI key not configured')) {
+      content += 'Live market data unavailable - API not configured. Using fallback content.'
     } else if (marketError) {
-      content += 'Market data unavailable due to technical issues. Check back later for updates.'
+      content += `Live market data unavailable due to technical issues: ${marketError}. Using fallback content.`
     } else {
-      content += 'Market data unavailable'
+      content += 'Live market data unavailable - no data received from API. Using fallback content.'
     }
 
-    // Add business news context if available
-    if (businessNews && businessNews.articles && businessNews.articles.length > 0) {
+    // Enhanced business news context
+    if (businessNews && businessNews.topArticles && businessNews.topArticles.length > 0) {
       content += ' In business news: '
-      const headlines = businessNews.articles.slice(0, 2).map((article: any) => {
-        return article.title.split(' - ')[0] // Remove source from title
+      const headlines = businessNews.topArticles.map((scored: ScoredBusinessArticle) => {
+        const title = scored.article.title.split(' - ')[0] // Remove source from title
+        return title
       })
       content += headlines.join('. ')
+    } else if (newsError && newsError.includes('not configured')) {
+      content += ' Business news unavailable - API not configured.'
+    } else if (newsError) {
+      content += ` Business news unavailable: ${newsError}.`
+    } else {
+      content += ' No business news available.'
     }
 
     // Determine status based on quota issues and errors
@@ -334,7 +741,7 @@ serve(async (req) => {
       executionStatus = 'completed_with_fallback'
     }
 
-    // Create content block
+    // Create enhanced content block with rich parameters
     const contentBlock: Partial<ContentBlock> = {
       content_type: 'markets',
       date: utcDateStr,
@@ -343,11 +750,20 @@ serve(async (req) => {
         market_data: marketData,
         market_error: marketError,
         market_summary: marketSummary,
+        market_trends: marketTrends,
         business_news: businessNews,
         news_error: newsError,
         quota_exceeded: quotaExceeded,
         api_call_count: apiCallCount,
-        execution_status: executionStatus
+        execution_status: executionStatus,
+        processing_version: '2.0-enhanced',
+        market_analysis: {
+          symbols_processed: marketData ? Object.keys(marketData).length : 0,
+          has_trend_analysis: !!marketTrends,
+          business_articles_processed: businessNews?.processedArticles?.length || 0,
+          top_business_articles: businessNews?.topArticles?.length || 0,
+          average_business_score: businessNews?.averageScore || 0
+        }
       },
       status: finalStatus,
       content_priority: 5,
@@ -367,21 +783,25 @@ serve(async (req) => {
     }
     validateObjectShape(data, ['id', 'content_type', 'date', 'status'])
 
-    // Log successful content generation
+    // Log successful enhanced content generation
     try {
       await supabaseClient
         .from('logs')
         .insert({
           event_type: 'content_generated',
           status: 'success',
-          message: 'Markets content generated successfully',
+          message: 'Enhanced markets content generated successfully',
           content_block_id: data.id,
           metadata: { 
             content_type: 'markets', 
             date: utcDateStr,
             quota_exceeded: quotaExceeded,
             api_call_count: apiCallCount,
-            has_market_data: !!marketData
+            has_market_data: !!marketData,
+            processing_version: '2.0-enhanced',
+            market_trends_analyzed: !!marketTrends,
+            business_articles_processed: businessNews?.processedArticles?.length || 0,
+            top_business_articles: businessNews?.topArticles?.length || 0
           }
         })
     } catch (logError) {
@@ -395,7 +815,15 @@ serve(async (req) => {
         market_error: marketError,
         quota_exceeded: quotaExceeded,
         api_call_count: apiCallCount,
-        execution_status: executionStatus
+        execution_status: executionStatus,
+        processing_version: '2.0-enhanced',
+        market_analysis: {
+          symbols_processed: marketData ? Object.keys(marketData).length : 0,
+          has_trend_analysis: !!marketTrends,
+          business_articles_processed: businessNews?.processedArticles?.length || 0,
+          top_business_articles: businessNews?.topArticles?.length || 0,
+          average_business_score: businessNews?.averageScore || 0
+        }
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -418,13 +846,14 @@ serve(async (req) => {
         .insert({
           event_type: 'content_generation_failed',
           status: 'error',
-          message: `Markets content generation failed: ${error.message}`,
+          message: `Enhanced markets content generation failed: ${error.message}`,
           metadata: { 
             content_type: 'markets', 
             error: error.toString(),
             errorType: error.name,
             stack: error.stack,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            processing_version: '2.0-enhanced'
           }
         })
     } catch (logError) {

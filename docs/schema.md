@@ -315,7 +315,7 @@ Each content function:
 |--------------|-------------|---------------------|------------|------------------|
 | `wake_up` | Abstracts API (holidays) | Daily | 72s |1weather` | Weather Kit API (via user_weather_data) | Hourly | 72ours |2 |
 | `headlines` | News API + GNews API (general category) | 4hours | 72rs | 3 |
-| `sports` | SportsDB API (eventsday.php) + ESPN API | 4hours | 72s |4 `markets` | Yahoo Finance API (get-quotes) + News API (business) | Hourly | 72hours | 5 |
+| `sports` | SportsDB API (eventsday.php) + ESPN API | 4hours | 72s |4 `markets` | Yahoo Finance API (market/v2/get-quotes) + News API (business) | Hourly | 72hours | 5 |
 | `encouragement` | Template-based (5 types) | Daily | 72ours |6## **User-Specific Content (user_id = specific)**
 | Content Type | Data Source | Generation Frequency | Expiration |
 |--------------|-------------|---------------------|------------|

@@ -73,16 +73,21 @@ DayStart uses 11 Supabase Edge Functions to power its AI-driven content generati
 - Combines data from multiple sources
 
 ### generate-markets-content
-**Purpose**: Creates financial market updates  
-**Priority**: 5*Frequency**: Hourly  
+**Purpose**: Creates enhanced financial market updates with trend analysis  
+**Priority**: 5  
+**Frequency**: Hourly  
 **Data Sources**: Yahoo Finance API + News API (business)  
-**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)
+**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)  
+**Version**: 2.0-enhanced
 
 **Features**:
-- Fetches market data via Rapid API
-- Includes business news headlines
-- Handles API rate limits and failures
-- Provides market summaries and trends
+- **Enhanced Market Data Processing**: Importance scoring based on volume, market cap, and change magnitude
+- **Market Trend Analysis**: Bullish/bearish sentiment, volatility assessment, key movers identification
+- **Business News Scoring**: Source reliability, market relevance, recency, and content quality scoring
+- **Explicit Data Availability**: Clear messaging when APIs are unavailable or misconfigured
+- **Rich Content Generation**: Prioritized market data with trend summaries and top-scored business news
+- **Enhanced Logging**: Processing version tracking, detailed analysis metrics, API key status logging
+- **Fallback Handling**: Graceful degradation with explicit fallback content messaging
 
 ### generate-encouragement-content
 **Purpose**: Creates motivational content in5ories  
