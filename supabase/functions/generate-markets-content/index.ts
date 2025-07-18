@@ -350,7 +350,7 @@ serve(async (req) => {
   validateEnvVars([
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY'
-    // RAPIDAPI_KEY and NEWS_API_KEY are optional - will use fallbacks if missing
+    // RAPID_API_KEY and NEWS_API_KEY are optional - will use fallbacks if missing
   ])
 
   try {
@@ -392,7 +392,7 @@ serve(async (req) => {
     let apiCallCount = 0
     
     try {
-      const rapidApiKey = Deno.env.get('RAPIDAPI_KEY')
+      const rapidApiKey = Deno.env.get('RAPID_API_KEY')
       if (rapidApiKey) {
         // Fetch major indices data - using Yahoo Finance symbols
         const symbols = ['^GSPC', '^DJI', '^TNX'] // S&P 500, Dow Jones, 10-Year Treasury
@@ -518,7 +518,7 @@ serve(async (req) => {
         }
       } else {
         marketError = 'RapidAPI key not configured - using fallback content'
-        console.warn('RAPIDAPI_KEY not configured, using fallback market content')
+        console.warn('RAPID_API_KEY not configured, using fallback market content')
         
         // Log the missing API key configuration
         try {
