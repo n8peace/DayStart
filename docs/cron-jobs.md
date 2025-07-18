@@ -15,7 +15,7 @@ Conservative scheduling focused on reliability and cost optimization.
 | `generate-audio` | Every minute | `* * * * *` | Process script_generated → ready | ElevenLabs |
 | `generate-headlines-content` | Every 6 hours | `0 */6 * * *` | News headlines and summaries | News API, GNews |
 | `generate-encouragement-content` | Daily | `0 2 * * *` | Motivational content (5 types) | None |
-| `generate-sports-content` | Every 12 hours | `0 */12 * * *` | Sports updates and highlights | ESPN, SportsDB |
+| `generate-sports-content` | Every 12 hours | `0 */12 * * *` | Enhanced sports updates with dates, locations, and news (v2.0) | ESPN, News API |
 | `generate-markets-content` | Every 6 hours | `0 */6 * * *` | Enhanced market data and business news (v2.0) | Yahoo Finance, News API |
 | `generate-wake-up-content` | Daily | `0 2 * * *` | Morning wake-up messages | Calendarific |
 | `expiration-clean-up` | Daily | `0 3 * * *` | Clean up expired audio files | None |
@@ -31,7 +31,7 @@ Conservative scheduling for development and testing purposes.
 | `generate-audio` | Hourly | `0 * * * *` | Process script_generated → ready | ElevenLabs |
 | `generate-headlines-content` | Daily | `0 2 * * *` | News headlines and summaries | News API, GNews |
 | `generate-encouragement-content` | Daily | `0 2 * * *` | Motivational content (5 types) | None |
-| `generate-sports-content` | Daily | `0 2 * * *` | Sports updates and highlights | ESPN, SportsDB |
+| `generate-sports-content` | Daily | `0 2 * * *` | Enhanced sports updates with dates, locations, and news (v2.0) | ESPN, News API |
 | `generate-markets-content` | Daily | `0 2 * * *` | Enhanced market data and business news (v2.0) | Yahoo Finance, News API |
 | `generate-wake-up-content` | Daily | `0 2 * * *` | Morning wake-up messages | Calendarific |
 | `expiration-clean-up` | Daily | `0 3 * * *` | Clean up expired audio files | None |

@@ -65,6 +65,13 @@ RAPID_API_KEY=your_rapid_api_key
 - **Used by**: `generate-markets-content` (v2.0-enhanced)
 - **Enhanced Features**: Business news scoring, market relevance weighting, source reliability assessment
 
+### **8. News API (Sports Category)**
+- **Endpoint**: `https://newsapi.org/v2/top-headlines`
+- **Parameters**: `category=sports`, `country=us`, `apiKey`, `pageSize=5`
+- **Example**: `https://newsapi.org/v2/top-headlines?category=sports&country=us&apiKey=KEY&pageSize=5`
+- **Used by**: `generate-sports-content` (v2.0-enhanced)
+- **Enhanced Features**: Sports news scoring, sports relevance weighting, source reliability assessment
+
 ## 🔄 Rate Limits
 
 ### **SportsDB API**
@@ -99,8 +106,11 @@ All functions include comprehensive error handling:
 
 ### **Enhanced Processing (v2.0-enhanced)**
 - **Market Data**: Importance scoring based on volume, market cap, and change magnitude
-- **Trend Analysis**: Bullish/bearish sentiment, volatility assessment, key movers identification
+- **Market Trend Analysis**: Bullish/bearish sentiment, volatility assessment, key movers identification
 - **Business News**: Source reliability, market relevance, recency, and content quality scoring
+- **Sports Data**: Importance scoring based on sport, status, and game closeness
+- **Sports News**: Source reliability, sports relevance, recency, and content quality scoring
+- **Sports Trend Analysis**: Activity levels, key events, and live game tracking
 - **Content Prioritization**: Data sorted by importance scores for optimal presentation
 
 ### **Data Storage**
