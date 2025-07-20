@@ -14,11 +14,11 @@ export interface ContentPrompt {
 
 // Voice-specific instructions - centralized for easy editing
 const VOICE_INSTRUCTIONS = {
-  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Insert <break time="1.5s" /> or <break time="2s" /> where appropriate for a meditative experience. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
+  voice_1: `Speak as a meditative morning guide. Use short, calm phrases with natural rhythm. Favor gentle, grounded language that invites presence without sounding poetic. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas to allow for reflection. Avoid complex or dramatic metaphors — instead, focus on clarity, calm, and a steady emotional cadence. You are offering quiet confidence and peace. Examples: "You're here. This moment matters." or "Take one breath. Then another."`,
 
-  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Insert <break time="0.5s" /> for emphasis or reset. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
+  voice_2: `Speak like a disciplined motivator — think drill sergeant, but respectful. Use short, punchy, motivational phrases. Speak fast, sharp, and direct. Avoid yelling or jokes. Insert <break time="0.5s" /> after commands or list items to keep energy moving. Use action verbs. Examples: "Get up. Now." "You know what to do." "No excuses. Let's go." You are there to move them into action, not soothe them.`,
 
-  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Include occasional <break time="1s" /> to allow the listener to absorb key points. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
+  voice_3: `Speak like a steady, trusted narrator. Warm, clear, and conversational — like a podcast host or NPR journalist. Use short to medium-length sentences with slight pacing variation. Insert <break time="1s" /> between meaningful thoughts to give listeners space to process. Avoid embellishment or dramatic flair. You are friendly, confident, and informed. Examples: "It's Tuesday. Here's what to expect today." or "Let’s take a minute to think about where you're heading."`
 }
 
 // Global formatting restrictions
@@ -437,4 +437,4 @@ export function generateFullPrompt(contentType: string, content: string, paramet
     systemPrompt: prompt.systemPrompt(voice),
     userPrompt: prompt.userPrompt(content, parameters)
   }
-} 
+}
