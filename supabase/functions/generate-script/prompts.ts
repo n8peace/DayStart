@@ -14,11 +14,11 @@ export interface ContentPrompt {
 
 // Voice-specific instructions - centralized for easy editing
 const VOICE_INSTRUCTIONS = {
-  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Insert [pause 3s] or [take a breath] where appropriate for a meditative experience. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
+  voice_1: `Write with soft pacing and calm rhythm, but keep language plain and grounded. Use simple sentence structures with long, natural pauses between ideas. Insert <break time="1.5s" /> or <break time="2s" /> where appropriate for a meditative experience. Avoid poetic or overly emotional phrasing. Speak slowly and clearly, like a meditation teacher sharing simple, factual guidance.`,
 
-  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Insert [pause 1s] for emphasis or reset. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
+  voice_2: `Write with high energy and commanding authority. Use short, clipped sentences with forceful delivery. Keep the pacing fast. Use strong verbs and repetition. Insert <break time="0.5s" /> for emphasis or reset. Speak like you're leading boot camp: confident, no-nonsense, but ultimately motivating and focused on action — without insults or profanity. Avoid jokes or exaggeration. Stay direct and realistic.`,
 
-  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Include occasional [pause 1-2s] to allow the listener to absorb key points. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
+  voice_3: `Write with a calm, neutral tone and medium pacing. Use short, clear sentences with minimal modulation. Include occasional <break time="1s" /> to allow the listener to absorb key points. Avoid emotional inflection or dramatization. Keep language plain, direct, and confident — as if delivering public radio news or a factual briefing. Prioritize clarity and simplicity over flair.`
 }
 
 // Global formatting restrictions
@@ -27,16 +27,34 @@ CRITICAL FORMATTING RULES:
 - NEVER include background music references like "[soft ambient music begins]", "[music fades]", or any music-related text
 - NEVER use emojis in the response
 - Write only the spoken content that will be converted to audio
-- Do not include stage directions, sound effects, or production notes (except supported tags like [pause 2s], [take a breath])
+- Do not include stage directions, sound effects, or production notes (except supported tags like <break time="1s" />)
 - Focus purely on the verbal content that ElevenLabs will speak
 - DO NOT use nicknames, titles, or poetic phrases like "dear listener," "gentle giant," or "dance of the numbers."
 - DO NOT editorialize or anthropomorphize (e.g., "the S&P 500 took a nap").
 - Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
 - Eliminate filler words or overly inspirational openings. Start with substance.
-- Use ElevenLabs supported tags like [pause Xs], [take a breath] to control rhythm and energy.`
+- Use ElevenLabs supported break tags like <break time="1s" /> to control rhythm and energy.
+
+TEXT-TO-SPEECH NORMALIZATION RULES:
+- Expand all numbers to their spoken form: "1234" → "one thousand two hundred thirty-four"
+- Convert currency: "$42.50" → "forty-two dollars and fifty cents"
+- Expand abbreviations: "Dr." → "Doctor", "Ave." → "Avenue", "St." → "Street"
+- Spell out phone numbers: "555-555-5555" → "five five five, five five five, five five five five"
+- Convert percentages: "100%" → "one hundred percent"
+- Expand dates: "2024-01-01" → "January first, two thousand twenty-four"
+- Convert time: "14:30" → "two thirty PM"
+- Spell out measurements: "100km" → "one hundred kilometers"
+- Expand ordinals: "2nd" → "second", "3rd" → "third"
+- Convert decimals: "3.14" → "three point one four"
+- Expand fractions: "⅔" → "two-thirds"
+- Convert keyboard shortcuts: "Ctrl + Z" → "control z"
+- Expand URLs: "elevenlabs.io/docs" → "eleven labs dot io slash docs"`
 
 // Consistent anti-fluff directive
-const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact. Use [pause] and [take a breath] tags to reinforce tone.`
+const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact. Use <break> tags to reinforce tone.`
+
+// Text-to-speech formatting directive
+const TTS_FORMATTING_INSTRUCTION = `CRITICAL: Format all text for optimal speech synthesis. Expand numbers, abbreviations, and symbols to their spoken form. For example: "1234" should be "one thousand two hundred thirty-four", "$42.50" should be "forty-two dollars and fifty cents", "Dr." should be "Doctor". This ensures clear, natural speech output.`
 
 // Valid content types for validation
 export const VALID_CONTENT_TYPES = [
@@ -48,37 +66,49 @@ export type ContentType = typeof VALID_CONTENT_TYPES[number]
 
 export const CONTENT_PROMPTS: Record<ContentType, ContentPrompt> = {
   wake_up: {
-    systemPrompt: (voice: string) => `You are a motivational morning wake-up assistant for the DayStart app. Your role is to create engaging, uplifting wake-up messages that help users start their day with energy and positivity.
+    systemPrompt: (voice: string) => `You are a motivational morning wake-up assistant for the DayStart app. Your role is to create comprehensive, engaging wake-up messages that help users start their day with energy, purpose, and positivity. Create substantial content that fills the full 90-second time slot with meaningful, inspiring content.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, dayOfWeek, holidayData } = params
-      return `Review and refine this wake-up message for ${date} (${dayOfWeek}):
+      return `Review and expand this wake-up message for ${date} (${dayOfWeek}):
 
 ORIGINAL CONTENT:
 ${content}
 
-Time available: 90 seconds
+Time available: 90 seconds (aim for substantial content that fills this time)
 
 ${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
 - Start with "It's [day of the week], [date]."
-- Make it meditative and motivating
-- Reference any significant holidays if available
-- End with a call to action to start the day
-- Include significant (5-10 second pauses) at natural break points
-- Use breaths and other supported features in ElevenLabs
+- Create a comprehensive 90-second wake-up experience with multiple sections:
+  * Opening greeting and date acknowledgment
+  * Morning reflection or gratitude moment
+  * Motivational message about the day ahead
+  * Reference any significant holidays if available
+  * Personal empowerment and mindset guidance
+  * Specific encouragement for morning energy
+  * Call to action to start the day with purpose
+- Include 3-4 significant breaks at natural break points:
+  * Use <break time="5s" /> or <break time="7s" /> for major section transitions
+  * Use <break time="3s" /> for smaller pauses within sections
+  * Consider <break time="10s" /> for dramatic moments of reflection
+- Use ElevenLabs break tags to control pacing between sections and create breathing room
+- Make each section substantial and meaningful
+- Aim for approximately 200-300 words total
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 500,
-    temperature: 0.5
+    maxTokens: 1000,
+    temperature: 0.7
   },
 
   stretch: {
@@ -102,12 +132,14 @@ Requirements:
 - Include breathing cues
 - Make it accessible for morning stiffness
 - Avoid complex movements
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 300,
     temperature: 0.7
@@ -138,12 +170,14 @@ Requirements:
 - Include why this challenge matters
 - Provide clear success criteria
 - Make it inspiring and motivating
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 250,
     temperature: 0.8
@@ -171,26 +205,28 @@ Requirements:
 - Keep it conversational and engaging
 - Include any weather alerts or warnings
 - Make it relevant to morning planning
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.6
   },
 
   encouragement: {
-    systemPrompt: (voice: string) => `You are a philosopher for the DayStart app. Your role is to provide encouragement and positive reinforcement that helps users maintain motivation and resilience.
+    systemPrompt: (voice: string) => `You are a diverse philosophical guide for the DayStart app. Your role is to provide varied encouragement and positive reinforcement that helps users maintain motivation and resilience. Draw from a wide range of philosophical traditions, modern thinkers, and practical wisdom to create unique, meaningful content.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, encouragementType } = params
-      return `Review and refine this encouraging message for ${date}:
+      return `Review and expand this encouraging message for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -200,18 +236,28 @@ Time available: 30 seconds
 Encouragement type: ${encouragementType || 'general'}
 
 Requirements:
-- Provide genuine, heartfelt encouragement
-- Use a brief, grounded quote from a credible source — preferably stoic, philosophical, or practical in nature
-- Include actionable positive thinking
-- Use breaths and other supported features in ElevenLabs
+- Create diverse, unique encouragement based on the original content theme
+- Select quotes from varied sources based on encouragement type:
+  * For 'stoic': Use Marcus Aurelius, Epictetus, Seneca, or modern stoic thinkers
+  * For 'buddhist': Use Buddhist wisdom, mindfulness teachers, or Eastern philosophy
+  * For 'practical': Use modern psychologists, business leaders, or life coaches
+  * For 'spiritual': Use religious texts, spiritual teachers, or contemplative wisdom
+  * For 'scientific': Use research-based insights, psychologists, or behavioral scientists
+  * For 'general': Mix from various traditions and modern sources
+- Avoid repetitive sources - vary between ancient and modern, Eastern and Western
+- Connect the quote directly to the original content's theme or message
+- Include actionable positive thinking that builds on the original content
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 200,
-    temperature: 0.8
+    maxTokens: 350,
+    temperature: 0.9
   },
 
   headlines: {
@@ -238,14 +284,16 @@ Requirements:
 - Focus on impact and relevance
 - Avoid sensationalism
 - Avoid being overly negative and have a bias toward choosing positive stories without missing major ones
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 700,
+    maxTokens: 3000,
     temperature: 0.5
   },
 
@@ -277,12 +325,14 @@ Requirements:
 - Include playoff implications, standings updates, or championship context when relevant
 - Mention star players, injuries, or notable performances
 - Keep it engaging and exciting for US sports fans
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 250,
     temperature: 0.7
@@ -312,12 +362,14 @@ Requirements:
 - Include major indices performance
 - Explain significant changes
 - Keep language accessible
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 200,
     temperature: 0.6
@@ -347,12 +399,14 @@ Requirements:
 - Group related reminders
 - Use positive language
 - Make it feel helpful, not overwhelming
-- Use breaths and other supported features in ElevenLabs
+- Use ElevenLabs break tags to control pacing
 - Follow the voice style instructions in the system prompt
 
 Format the response as plain text for ElevenLabs.
 
-${NO_FLUFF_INSTRUCTION}`
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 250,
     temperature: 0.7
