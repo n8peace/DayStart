@@ -198,37 +198,36 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
   voice_1: {
     voiceId: 'wdRkW5c5eYi8vKR8E4V9',
     name: 'Grace',
-    description: 'Female meditative wake up voice - soft pacing and calm rhythm',
+    description: 'Female meditative wake up voice - even slower pacing and gentle tone',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.5,
+    stability: 0.6, // smoother delivery
     similarityBoost: 0.75,
-    style: 0.1,
+    style: 0.05, // lower for calmer tone
     useSpeakerBoost: true,
-    pauseAfterSentences: 1
+    pauseAfterSentences: 1.5 // extended pause for meditation feel
   },
   voice_2: {
     voiceId: 'wBXNqKUATyqu0RtYt25i',
     name: 'Adam',
-    description: 'Male drill sergeant voice - high energy and commanding authority',
+    description: 'Male drill sergeant voice - amped up like Major Payne, aggressive and commanding',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.3,
+    stability: 0.2, // more vocal unpredictability
     similarityBoost: 0.6,
-    style: 0.2,
+    style: 0.9, // max assertiveness
     useSpeakerBoost: true,
-    pauseAfterSentences: 1
+    pauseAfterSentences: 0.3 // fast pacing
   },
   voice_3: {
     voiceId: 'QczW7rKFMVYyubTC1QDk',
     name: 'Matthew',
-    description: 'Male narrative voice - calm, neutral tone and medium pacing',
+    description: 'Male narrative voice - Michael Barbaro style with steady rhythm and journalistic warmth',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.4,
-    similarityBoost: 0.75,
-    style: 0.0,
+    stability: 0.6, // more consistent tone
+    similarityBoost: 0.8,
+    style: 0.1, // calm and neutral
     useSpeakerBoost: true,
-    pauseAfterSentences: 1
-  }
-}
+    pauseAfterSentences: 1.25 // slightly slower for dramatic effect
+  }  
 
 export const DEFAULT_VOICE = 'voice_1'
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'

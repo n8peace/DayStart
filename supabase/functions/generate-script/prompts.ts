@@ -83,7 +83,7 @@ Time available: 90 seconds (aim for substantial content that fills this time)
 ${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
-- Start with "It's [day of the week], [date]."
+- Start with "It's [day of the week], [date without year]." (e.g., "It's Monday, July twenty-first.")
 - Create a comprehensive 90-second wake-up experience with multiple sections:
   * Opening greeting and date acknowledgment
   * Morning reflection or gratitude moment
