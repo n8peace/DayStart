@@ -101,13 +101,21 @@ async function generateAudioForContentBlock(
 
     // Get ElevenLabs API key
     const elevenLabsApiKey = Deno.env.get('ELEVEN_LABS_API_KEY')
+    console.log(`🔑 ElevenLabs API key configured: ${elevenLabsApiKey ? 'YES' : 'NO'}`)
+    
     if (!elevenLabsApiKey) {
+      console.error('❌ ElevenLabs API key not configured')
       return { success: false, error: 'ElevenLabs API key not configured - audio generation unavailable' }
     }
+
+    console.log(`🎤 Using voice: ${voice} (${voiceConfig.name})`)
+    console.log(`📝 TTS request prepared for text length: ${ttsRequest.text.length}`)
 
     // Call ElevenLabs API with timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), ELEVEN_LABS_TIMEOUT_MS)
+    
+    console.log(`🌐 Calling ElevenLabs API: ${ELEVEN_LABS_API_BASE}/text-to-speech/${voiceConfig.voiceId}`)
 
     try {
       const response = await fetch(`${ELEVEN_LABS_API_BASE}/text-to-speech/${voiceConfig.voiceId}`, {
@@ -397,10 +405,12 @@ async function processBatch(supabaseClient: any): Promise<{
   totalErrors: number; 
   errors: string[] 
 }> {
+  console.log('🔍 processBatch: Starting batch processing')
   const errors: string[] = []
   let totalProcessed = 0
   let totalErrors = 0
   try {
+    console.log('📊 processBatch: Fetching content blocks from database...')
     // Fetch content blocks that need audio generation
     const { data: contentBlocks, error: fetchError } = await supabaseClient
       .from('content_blocks')
@@ -411,10 +421,14 @@ async function processBatch(supabaseClient: any): Promise<{
       .limit(BATCH_SIZE)
 
     if (fetchError) {
+      console.error('❌ processBatch: Database fetch error:', fetchError)
       throw new Error(`Failed to fetch content blocks: ${fetchError.message}`)
     }
 
+    console.log(`📊 processBatch: Found ${contentBlocks?.length || 0} content blocks`)
+    
     if (!contentBlocks || contentBlocks.length === 0) {
+      console.log('ℹ️ processBatch: No content blocks to process')
       return { success: true, processedCount: 0, totalErrors: 0, errors: [] }
     }
 
@@ -489,26 +503,59 @@ async function processBatchAsync(supabaseClient: any): Promise<void> {
 }
 
 serve(async (req) => {
-  // Deployment trigger - Test deployment update - 2024-12-19
+  // Enhanced logging for diagnosis - 2025-07-20
+  console.log('🚀 generate-audio function invoked')
+  console.log(`📝 Request method: ${req.method}`)
+  console.log(`🌐 Request URL: ${req.url}`)
+  console.log(`📅 Timestamp: ${new Date().toISOString()}`)
+  
   if (req.method === 'OPTIONS') {
+    console.log('✅ OPTIONS request handled')
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Validate required environment variables
-  validateEnvVars([
-    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
-    'ELEVEN_LABS_API_KEY'
-  ])
+  console.log('🔍 Validating environment variables...')
+  try {
+    // Validate required environment variables
+    validateEnvVars([
+      'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+      'ELEVEN_LABS_API_KEY'
+    ])
+    console.log('✅ Environment variables validated successfully')
+  } catch (envError) {
+    console.error('❌ Environment validation failed:', envError.message)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Environment validation failed: ${envError.message}`,
+        timestamp: new Date().toISOString()
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
+    )
+  }
 
   // Handle health check requests
   const url = new URL(req.url)
+  console.log(`🔍 Checking if this is a health check request...`)
+  console.log(`📍 Pathname: ${url.pathname}`)
+  
   if (req.method === 'GET' || url.pathname === '/health' || url.pathname.endsWith('/health')) {
+    console.log('🏥 Health check request detected')
     try {
       const response = {
         status: 'healthy',
         function: 'generate-audio',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        environment: {
+          hasSupabaseUrl: !!Deno.env.get('SUPABASE_URL'),
+          hasServiceRoleKey: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+          hasElevenLabsKey: !!Deno.env.get('ELEVEN_LABS_API_KEY')
+        }
       }
+      console.log('✅ Health check response prepared:', response)
       return new Response(
         JSON.stringify(response),
         {
@@ -517,6 +564,7 @@ serve(async (req) => {
         }
       )
     } catch (healthError) {
+      console.error('❌ Health check error:', healthError)
       return new Response(
         JSON.stringify({
           status: 'error',
@@ -533,7 +581,9 @@ serve(async (req) => {
   }
 
   // Validate HTTP method for non-health check requests
+  console.log(`🔍 Validating HTTP method: ${req.method}`)
   if (req.method !== 'POST') {
+    console.log(`❌ Invalid HTTP method: ${req.method}`)
     return new Response(
       JSON.stringify({ 
         success: false, 
@@ -545,22 +595,37 @@ serve(async (req) => {
     )
   }
 
+  console.log('✅ HTTP method validation passed')
+  console.log('🔧 Initializing Supabase client...')
+  
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    
+    console.log(`🌐 Supabase URL configured: ${supabaseUrl ? 'YES' : 'NO'}`)
+    console.log(`🔑 Service role key configured: ${serviceRoleKey ? 'YES' : 'NO'}`)
+    
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
+    console.log('✅ Supabase client initialized successfully')
 
     // Check if this is a cron job request (immediate response needed)
-    const isCronJob = req.headers.get('user-agent')?.includes('cron-job.org') || 
-                     req.headers.get('x-cron-job') === 'true'
+    const userAgent = req.headers.get('user-agent') || 'unknown'
+    const cronHeader = req.headers.get('x-cron-job')
+    
+    console.log(`🤖 User-Agent: ${userAgent}`)
+    console.log(`⏰ Cron header: ${cronHeader}`)
+    
+    const isCronJob = userAgent.includes('cron-job.org') || cronHeader === 'true'
+    console.log(`🔄 Is cron job: ${isCronJob}`)
 
     if (isCronJob) {
+      console.log('⏰ Cron job detected - starting async processing')
       // Start async processing without waiting
       processBatchAsync(supabaseClient).catch(error => {
-        console.error('Async processing error:', error)
+        console.error('❌ Async processing error:', error)
       })
       
+      console.log('✅ Returning immediate success response for cron job')
       // Return immediate success response
       return new Response(
         JSON.stringify({
@@ -576,14 +641,32 @@ serve(async (req) => {
     }
 
     // For non-cron requests, process synchronously (for manual testing)
+    console.log('🔄 Starting synchronous batch processing for manual request')
     let executionStatus = 'completed'
-    const result = await processBatch(supabaseClient)
+    let result: any = null
+    
+    try {
+      result = await processBatch(supabaseClient)
+      console.log(`📊 Batch processing completed:`, {
+        success: result.success,
+        processedCount: result.processedCount,
+        totalErrors: result.totalErrors,
+        errors: result.errors
+      })
 
-    // Determine execution status based on results
-    if (result.totalErrors > 0 && result.processedCount === 0) {
-      executionStatus = 'completed_with_errors'
-    } else if (result.totalErrors > 0) {
-      executionStatus = 'completed_with_warnings'
+      // Determine execution status based on results
+      if (result.totalErrors > 0 && result.processedCount === 0) {
+        executionStatus = 'completed_with_errors'
+        console.log('❌ Execution status: completed_with_errors')
+      } else if (result.totalErrors > 0) {
+        executionStatus = 'completed_with_warnings'
+        console.log('⚠️ Execution status: completed_with_warnings')
+      } else {
+        console.log('✅ Execution status: completed')
+      }
+    } catch (batchError) {
+      console.error('❌ Batch processing failed:', batchError)
+      executionStatus = 'failed'
     }
 
     // Log batch completion
