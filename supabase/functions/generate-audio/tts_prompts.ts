@@ -227,7 +227,8 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
     style: 0.1, // calm and neutral
     useSpeakerBoost: true,
     pauseAfterSentences: 1.25 // slightly slower for dramatic effect
-  }  
+  }
+}
 
 export const DEFAULT_VOICE = 'voice_1'
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'
