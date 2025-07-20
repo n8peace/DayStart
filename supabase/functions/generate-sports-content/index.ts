@@ -310,8 +310,6 @@ function formatEventTime(timeString: string): string {
   
   const time = new Date(timeString)
   return time.toLocaleTimeString('en-US', { 
-}) 
-// Last Updated: 2025-01-27
     hour: 'numeric', 
     minute: '2-digit',
     hour12: true 
