@@ -310,6 +310,8 @@ function formatEventTime(timeString: string): string {
   
   const time = new Date(timeString)
   return time.toLocaleTimeString('en-US', { 
+}) 
+// Last Updated: 2025-01-27
     hour: 'numeric', 
     minute: '2-digit',
     hour12: true 
@@ -832,7 +834,6 @@ serve(async (req) => {
     } catch (logError) {
       console.error('Failed to log error:', logError)
     }
-
     // Always return 200 for cron job success, but indicate execution failure in response
     return new Response(
       JSON.stringify({ 
