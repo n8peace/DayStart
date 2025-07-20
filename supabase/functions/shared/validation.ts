@@ -1,3 +1,4 @@
+// Last Updated: 2024-07-19
 // Shared runtime validation utilities for DayStart Edge Functions
 
 // Validate required environment variables

@@ -1,4 +1,4 @@
-// Last Updated: 2025-01-27
+// Last Updated: 2024-07-19
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ContentBlock } from '../shared/types.ts'

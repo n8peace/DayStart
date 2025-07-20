@@ -1,3 +1,4 @@
+// Last Updated: 2024-07-19
 // Shared TypeScript interfaces for DayStart Edge Functions
 
 export interface ContentBlock {
