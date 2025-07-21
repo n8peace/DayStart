@@ -35,6 +35,10 @@ CRITICAL FORMATTING RULES:
 - Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
 - Eliminate filler words or overly inspirational openings. Start with substance.
 - Use ElevenLabs supported break tags like <break time="1s" /> to control rhythm and energy.
+- Never say "no significant holidays today." If there is no holiday, omit this section.
+- Never say "data is unavailable" or "check back later."
+- If data is missing, focus on what you can. If there's insufficient data, reply back with an error code.
+- Skip filler or apology phrases when data is incomplete.
 
 TEXT-TO-SPEECH NORMALIZATION RULES:
 - Expand all numbers to their spoken form: "1234" → "one thousand two hundred thirty-four"
@@ -85,31 +89,24 @@ ${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
 - Start with "It's [day of the week], [date without year]." (e.g., "It's Monday, July twenty-first.")
-- Create a comprehensive 90-second wake-up experience with multiple sections:
-  * Opening greeting and date acknowledgment
-  * Morning reflection or gratitude moment
-  * Motivational message about the day ahead
-  * Reference any significant holidays if available
-  * Personal empowerment and mindset guidance
-  * Specific encouragement for morning energy
-  * Call to action to start the day with purpose
-- Include 3-4 significant breaks at natural break points:
-  * Use <break time="5s" /> or <break time="7s" /> for major section transitions
-  * Use <break time="3s" /> for smaller pauses within sections
-  * Consider <break time="10s" /> for dramatic moments of reflection
-- Use ElevenLabs break tags to control pacing between sections and create breathing room
-- Make each section substantial and meaningful
-- Aim for approximately 200-300 words total
+- Create a coherent and grounded 90-second wake-up experience with clear flow and structure. Suggested outline:
+  * Greeting and acknowledgment of the date
+  * Reference the holiday if one is present, otherwise omit
+  * A brief reflection to help them slow down and breathe
+  * Light guidance to focus their mind for the day
+  * End with a clear and encouraging invitation to begin the day
+- Use 3–4 <break> tags to define transitions between ideas:
+  * Use <break time="5s" /> or <break time="7s" /> between sections
+  * Use <break time="3s" /> for light intra-section pacing
+  * Consider <break time="10s" /> only for deep pauses or silence-based reflection
+- Keep the tone focused, clean, and confident — avoid bouncing between unrelated ideas
+- Avoid lists of motivational quotes or generalities
 - Follow the voice style instructions in the system prompt
 
-Format the response as plain text for ElevenLabs.
-
-${NO_FLUFF_INSTRUCTION}
-
-${TTS_FORMATTING_INSTRUCTION}`
+Format the response as plain text for ElevenLabs.`
     },
     maxTokens: 1000,
-    temperature: 0.7
+    temperature: 0.5
   },
 
   stretch: {
@@ -143,7 +140,7 @@ ${NO_FLUFF_INSTRUCTION}
 ${TTS_FORMATTING_INSTRUCTION}`
     },
     maxTokens: 300,
-    temperature: 0.7
+    temperature: 0.5
   },
 
   challenge: {
@@ -280,7 +277,7 @@ User interests: ${userInterests || 'general news'}
 
 Requirements:
 - Select 3 - 5 most important stories
-- Provide brief, factual summaries
+- Provide brief, factual summaries. Don't rush through them.
 - Maintain neutral, balanced tone
 - Focus on impact and relevance
 - Avoid sensationalism
@@ -319,9 +316,8 @@ Sport focus: ${sportType || 'major US leagues (NFL, NBA, MLB, NHL, NCAA)'}
 Recent games: ${recentGames ? JSON.stringify(recentGames) : 'None'}
 
 Requirements:
-- Start with "It's ${dayOfWeek}, ${date}."
 - Focus on major US sports leagues (NFL, NBA, MLB, NHL, NCAA Football/Basketball)
-- Cover relevant games, scores, and key moments for this specific date
+- Cover relevant games, scores, and key moments for this specific date. If they're a future date, refer to it colloquially ("the Cowboys plat tomorrow," "The Rangers play next week"," "Lakers don't play until March twenty seventh")
 - Use American sports terminology and team names
 - Include playoff implications, standings updates, or championship context when relevant
 - Mention star players, injuries, or notable performances
@@ -335,7 +331,7 @@ ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 250,
+    maxTokens: 350,
     temperature: 0.7
   },
 
@@ -372,7 +368,7 @@ ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 200,
+    maxTokens: 250,
     temperature: 0.6
   },
 
@@ -409,7 +405,7 @@ ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 250,
+    maxTokens: 350,
     temperature: 0.7
   }
 }
