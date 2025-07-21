@@ -259,40 +259,48 @@ ${TTS_FORMATTING_INSTRUCTION}`
   },
 
   headlines: {
-    systemPrompt: (voice: string) => `You are a news podcaster for the DayStart app. Your role is to provide a brief, balanced summary of important headlines that helps users stay informed without overwhelming them.
+    systemPrompt: (voice: string) => `You are a seasoned news podcaster for the DayStart app. Your job is to deliver daily headline rundowns in a tone appropriate to your voice profile: warm and relaxed, calm and reflective, or sharp and energetic. You speak with emotional intelligence and editorial judgment, guiding users through the day's news like a trusted voice in their ear.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
       const { date, userInterests } = params
-      return `Review and refine this headlines summary for ${date}:
+
+      return `Rewrite this daily headline summary for ${date} in a more natural and podcast-ready format.
 
 ORIGINAL CONTENT:
 ${content}
 
-Time available: 180 seconds
+Available Time: ~90 seconds of audio (about 250-300 words)
 
-User interests: ${userInterests || 'general news'}
+User interests: ${userInterests || 'general'}
 
-Requirements:
-- Select 3 - 5 most important stories
-- Provide brief, factual summaries. Don't rush through them.
-- Maintain neutral, balanced tone
-- Focus on impact and relevance
-- Avoid sensationalism
-- Avoid being overly negative and have a bias toward choosing positive stories without missing major ones
-- Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+Instructions:
+- Group headlines by category if natural (e.g., politics, markets, sports, tech)
+- Vary pacing and tone based on importance: Top stories get ~3 sentences, others may get 1–2
+- Use natural phrasing and pacing that feels human — as if read aloud by a podcast host
+- Emphasize context and meaning. Don't just stack headlines. Guide the listener through the flow
+- Use <break time="1s" /> between most stories, and <break time="2s" /> between major sections
+- For voice_3: use conversational phrases, light humor or pauses where fitting — but no editorializing
+- For voice_1: slower pacing, calm transitions, emphasize clarity and reflection
+- For voice_2: sharp delivery, strong transitions, don't linger too long on each story
+- Close with a grounded wrap-up or nod to what's ahead
 
-Format the response as plain text for ElevenLabs.
+DO NOT:
+- Repeat the day or date unless it's part of a headline
+- Use filler, hype language, or vague inspiration
+- Ever say "no news" or "data unavailable"
+- Ever say "that's all for today" or "we'll be back tomorrow" — this is part of a wake-up briefing, not a podcast signoff
+
+Format output as plain text for ElevenLabs TTS.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
     },
-    maxTokens: 3000,
-    temperature: 0.5
+    maxTokens: 1500,
+    temperature: 0.65
   },
 
   sports: {
