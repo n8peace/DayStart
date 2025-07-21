@@ -93,12 +93,23 @@ jobs:
         echo "Attempting database migration deployment..."
         supabase db push
         
-    - name: Deploy Edge Functions (Update Only)
+    - name: Remove Legacy Functions
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         cd supabase
-        echo "🚀 Deploying edge functions to development (update mode)..."
+        echo "Removing legacy functions..."
+        # Remove legacy functions that are no longer needed
+        supabase functions delete generate-message --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "generate-message not found or already removed"
+        supabase functions delete test-voice --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "test-voice not found or already removed"
+        echo "Legacy function removal complete"
+        
+    - name: Deploy Edge Functions
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        cd supabase
+        echo "🚀 Deploying edge functions to development..."
         echo "Current directory: $(pwd)"
         echo "Git commit hash: $(git rev-parse HEAD)"
         echo "Git branch: $(git branch --show-current)"
@@ -107,9 +118,9 @@ jobs:
         
         # Check if any functions exist to deploy
         if [ -d "functions" ] && [ "$(ls -A functions)" ]; then
-          echo "Found functions, deploying with updates..."
+          echo "Found functions, deploying individually..."
           
-          # Deploy each function individually (update mode)
+          # Deploy each function individually
           for func_dir in functions/*/; do
             if [ -d "$func_dir" ]; then
               func_name=$(basename "$func_dir")
@@ -117,27 +128,31 @@ jobs:
                 echo "⏭️ Skipping shared directory (not a function)"
                 continue
               fi
-              echo "🚀 Updating function: $func_name"
+              echo "🚀 Deploying function: $func_name"
               echo "📁 Function directory: $func_dir"
               echo "📄 Function files:"
               ls -la "$func_dir"
               
-              # Deploy with update (no force delete)
-              echo "🔄 Deploying updated function: $func_name"
+              # Force delete and redeploy to clear any caching
+              echo "🗑️ Force deleting function first..."
+              supabase functions delete $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Function not found or already deleted"
+              
+              # Deploy with verbose output
+              echo "🚀 Deploying fresh copy of function: $func_name"
               supabase functions deploy $func_name --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} --debug || {
                 echo "❌ Failed to deploy function: $func_name"
                 echo "🔍 Checking function status..."
                 supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
                 exit 1
               }
-              echo "✅ Successfully updated function: $func_name"
+              echo "✅ Successfully deployed function: $func_name"
             fi
           done
           
-          echo "✅ All function updates completed"
+          echo "✅ All function deployments completed"
           
           # List deployed functions
-          echo "📋 Updated functions:"
+          echo "📋 Deployed functions:"
           supabase functions list --project-ref ${{ secrets.SUPABASE_DEVELOP_PROJECT }} || echo "Could not list functions"
         else
           echo "⚠️ No functions to deploy - functions directory is empty"
@@ -277,7 +292,6 @@ jobs:
         echo "Deployment time: $(date)"
         echo "Commit: ${{ github.sha }}"
         echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
-        echo "Mode: Function updates (no deletion)"
         
   deployment-failed:
     name: Development Deployment Failed

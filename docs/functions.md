@@ -302,4 +302,44 @@ Use the `health-check` function for:
 ### API Security
 - API keys stored as environment variables
 - No hardcoded credentials
-- Proper error handling prevents information leakage 
+- Proper error handling prevents information leakage
+
+## Development Practices
+
+### Code Standards
+- Use TypeScript for all functions
+- Include comprehensive error handling
+- Add input validation for all parameters
+- Document function purpose and behavior
+- Follow consistent naming conventions
+
+### Last Updated Date Convention
+Every function file must include a "Last Updated" comment at the top of the file:
+
+```typescript
+// Last Updated: 2024-07-20
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// ... rest of function code
+```
+
+**When to Update:**
+- Any code changes to the function
+- Bug fixes or improvements
+- New features or functionality
+- Documentation updates within the function
+- Configuration changes
+
+**Format:**
+- Use YYYY-MM-DD format (e.g., "2024-07-20")
+- Update to the current date when making changes
+- Place at the very top of the file, before imports
+
+### Function Testing
+- Test locally using `supabase functions serve`
+- Verify error handling with invalid inputs
+- Test API integrations and fallback scenarios
+- Validate database operations and logging
+
+---
+
+**Last Updated**: July 2024 
