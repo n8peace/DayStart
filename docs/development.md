@@ -107,6 +107,27 @@ CREATE TABLE users (
 - Add input validation
 - Document function purpose
 - Respect external API concurrency limits
+- **Update the "Last Updated" date** when modifying any function file
+
+**Last Updated Date Convention:**
+- Every function file must include a "Last Updated" comment at the top
+- Format: `// Last Updated: YYYY-MM-DD`
+- Update this date whenever you modify the function code
+- Use the current date in YYYY-MM-DD format (e.g., "2024-07-20")
+
+**Example:**
+```typescript
+// Last Updated: 2024-07-20
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// ... rest of function code
+```
+
+**When to Update:**
+- Any code changes to the function
+- Bug fixes or improvements
+- New features or functionality
+- Documentation updates within the function
+- Configuration changes
 
 **Concurrency Considerations:**
 - **ElevenLabs API**: 5 concurrent requests maximum
@@ -348,4 +369,6 @@ supabase functions serve --debug
 
 ---
 
-*This development guide provides the foundation for contributing to DayStart. For setup instructions, see [supabase-setup.md](supabase-setup.md). For deployment workflows, see [deployment.md](deployment.md).* 
+*This development guide provides the foundation for contributing to DayStart. For setup instructions, see [supabase-setup.md](supabase-setup.md). For deployment workflows, see [deployment.md](deployment.md).*
+
+**Last Updated**: July 2024 
