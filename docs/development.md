@@ -47,13 +47,13 @@ This guide covers the development workflow, best practices, and contribution gui
 
 6. **Merge and Deploy**
    - Merge to `develop`
-   - Automatic deployment to development environment
+   - Automatic deployment to development environment (V2 workflow)
    - Test in development environment
 
 7. **Release to Production**
    - Create PR from `develop` to `main`
    - Manual review and approval
-   - Deploy to production
+   - Deploy to production (V2 workflow)
 
 ## 📋 Code Standards
 

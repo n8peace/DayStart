@@ -323,7 +323,7 @@ serve(async (req) => {
         apiCallCount++
         console.log(`Making News API call ${apiCallCount}/2`)
         
-        const newsResponse = await fetch(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${newsApiKey}&pageSize=8`, {
+        const newsResponse = await fetch(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${newsApiKey}&pageSize=12`, {
           signal: AbortSignal.timeout(10000) // 10 second timeout
         })
         if (newsResponse.ok) {
@@ -421,7 +421,7 @@ serve(async (req) => {
 
     // Process News API articles
     if (newsApiData?.articles) {
-      newsApiData.articles.slice(0, 8).forEach((article: any) => {
+      newsApiData.articles.slice(0, 12).forEach((article: any) => {
         const processed: ProcessedArticle = {
           title: article.title || '',
           description: article.description || article.content || '',
@@ -463,11 +463,20 @@ serve(async (req) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
 
-    // Create enhanced content with descriptions
+    // Create enhanced content with 3-sentence summaries
     if (topStories.length > 0) {
       const storySummaries = topStories.map(story => {
-        const desc = story.article.description || story.article.content?.substring(0, 100) || ''
-        return `${story.article.title}. ${desc}`
+        const title = story.article.title
+        const description = story.article.description || story.article.content?.substring(0, 200) || ''
+        const source = story.article.source
+        const category = story.article.category
+        
+        // Create 3-sentence summary: Title, Description, Context
+        const sentence1 = title
+        const sentence2 = description.length > 0 ? description : `This story comes from ${source}.`
+        const sentence3 = `This ${category} story provides important context for today's news.`
+        
+        return `${sentence1}. ${sentence2}. ${sentence3}`
       })
       content += storySummaries.join('. ')
     } else if (newsApiError && gnewsError) {
