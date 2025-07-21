@@ -4,6 +4,8 @@
 
 DayStart uses 11 Supabase Edge Functions to power its AI-driven content generation system. These functions work together to create personalized morning messages with high-quality voice synthesis.
 
+**Deployment Strategy**: Functions are deployed using an update-only approach that ensures reliable deployments without authentication or project-specific issues.
+
 ## Function Architecture
 
 ### Content Generation Functions (6se functions fetch external data and create content blocks for different content types:1. **`generate-wake-up-content`** - Daily wake-up messages and holiday information

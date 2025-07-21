@@ -230,12 +230,18 @@ your-project/
 - **Manual**: Workflow dispatch with confirmation dialog
 - **Validation**: Branch validation, environment variable checks
 - **Health Checks**: Post-deployment verification of database
+- **Function Updates**: Update-only deployment (no deletion)
 
 ### Development Deployment (`.github/workflows/deploy-develop.yml`)
 - **Automatic**: Triggers on push to `develop` branch
 - **Manual**: Workflow dispatch (no confirmation required)
 - **Validation**: Environment variable checks
 - **Health Checks**: Post-deployment verification of database
+- **Function Updates**: Update-only deployment (no deletion)
+
+### Archived Workflows (`.github/workflows/archived/`)
+- **`deploy-develop-v1.yml`**: Previous version with function deletion (archived)
+- **`deploy-main-v1.yml`**: Previous version with function deletion (archived)
 
 ## 📊 Deployment Process
 
@@ -274,6 +280,27 @@ Use timestamp format: `YYYYMMDDHHMMSS_description.sql`
 Example: `20240101120000_create_users_table.sql`
 
 ## 📅 Recent Deployments
+
+### 2025-01-17: V2 Workflow Promotion to Default
+**Status**: ✅ **V2 WORKFLOWS NOW DEFAULT**
+
+**Workflow Reorganization:**
+- ✅ V2 workflows promoted to default names
+- ✅ Old V1 workflows archived for reference
+- ✅ Update-only deployment approach now standard
+- ✅ Consistent deployment strategy across develop and main
+
+**Current Workflow Structure:**
+- **`deploy-develop.yml`**: V2 workflow (update-only, reliable)
+- **`deploy-main.yml`**: V2 workflow (update-only, reliable)
+- **`archived/deploy-develop-v1.yml`**: Previous version (archived)
+- **`archived/deploy-main-v1.yml`**: Previous version (archived)
+
+**Benefits Achieved:**
+- ✅ Reliable deployments for both environments
+- ✅ No more authentication or project-specific issues
+- ✅ Faster deployment times
+- ✅ Consistent behavior across environments
 
 ### 2025-01-15: Content Generation System Deployment to Production
 **Status**: ✅ **DEPLOYED TO MAIN BRANCH (PRODUCTION)**
@@ -424,11 +451,16 @@ Error: Project not found
 - **Weather Function**: Returns 400 when no weather data exists in `user_weather_data` table
 - **Solution**: Health checks are configured to accept 400 responses from weather function as healthy
 
-#### Legacy Function Cleanup
-**Issue**: Old functions remain in Supabase after updates
-**Solution**: Deployment workflows now automatically remove legacy functions before deploying new ones
-- **Legacy Functions Removed**: `generate-message`, `test-voice`
-- **Process**: Functions are deleted during deployment, then new functions are deployed
+#### Function Deployment Strategy
+**Current Approach**: Update-only deployment (V2 workflow)
+- **Process**: Functions are updated in place without deletion
+- **Benefits**: More reliable, faster deployments, no downtime
+- **Status**: ✅ Working reliably for both develop and main environments
+
+**Previous Approach**: Delete-and-replace deployment (V1 workflow - archived)
+- **Process**: Functions were deleted then redeployed
+- **Issues**: Caused authentication and project-specific problems
+- **Status**: ❌ Archived due to reliability issues
 
 ### Debug Commands
 ```bash
@@ -542,10 +574,10 @@ The deployment script automates the deployment process and includes safety check
    - Continue operation when possible even with partial failures
 
 ### Deployment Workflow
-1. **Legacy Cleanup**: Always remove old functions before deploying new ones
-   - Prevents confusion about which functions are active
-   - Ensures clean deployment state
-   - Reduces potential conflicts
+1. **Update-Only Deployment**: Functions are updated in place without deletion
+   - Prevents authentication and project-specific issues
+   - Ensures faster, more reliable deployments
+   - Maintains function state and configuration
 
 2. **Incremental Testing**: Test functions individually before full deployment
    - Use health checks to verify each function
