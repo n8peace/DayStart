@@ -1,3 +1,4 @@
+// Last Updated: 2024-07-20
 // ElevenLabs TTS Configuration for DayStart Audio Generation
 // This file contains voice mappings, model settings, and TTS-specific prompts
 
@@ -10,6 +11,7 @@ export interface VoiceConfig {
   similarityBoost: number
   style: number
   useSpeakerBoost: boolean
+  pauseAfterSentences?: number
 }
 
 export interface TTSRequest {
@@ -24,110 +26,260 @@ export interface TTSRequest {
   }
 }
 
-// ElevenLabs Voice Mappings
-// Using Eleven Multilingual v2 model: High-quality multilingual speech synthesis
-// - 29+ languages supported
-// - 5,000 character limit
-// - Natural speech with good emotion control
-// - Support for multiple languages in single request
+// Text normalization function for TTS clarity
+function normalizeTextForTTS(text: string): string {
+  return text
+    // Convert monetary values
+    .replace(/([$£€¥])(\d+(?:,\d{3})*(?:\.\d{2})?)/g, (match, currency, num) => {
+      const numWithoutCommas = num.replace(/,/g, '')
+      const currencyMap: { [key: string]: string } = {
+        $: 'dollars',
+        '£': 'pounds',
+        '€': 'euros',
+        '¥': 'yen',
+      }
+      
+      if (numWithoutCommas.includes('.')) {
+        const [dollars, cents] = numWithoutCommas.split('.')
+        const dollarsWords = numberToWords(parseInt(dollars))
+        const centsWords = numberToWords(parseInt(cents))
+        return `${dollarsWords} ${currencyMap[currency] || 'currency'} and ${centsWords} cents`
+      }
+      
+      const words = numberToWords(parseInt(numWithoutCommas))
+      return `${words} ${currencyMap[currency] || 'currency'}`
+    })
+    
+    // Convert phone numbers
+    .replace(/(\d{3})-(\d{3})-(\d{4})/g, (match, p1, p2, p3) => {
+      return `${spellOutDigits(p1)}, ${spellOutDigits(p2)}, ${spellOutDigits(p3)}`
+    })
+    
+    // Convert percentages
+    .replace(/(\d+(?:\.\d+)?)%/g, (match, num) => {
+      const words = numberToWords(parseFloat(num))
+      return `${words} percent`
+    })
+    
+    // Convert measurements
+    .replace(/(\d+(?:\.\d+)?)\s*(km|mi|m|ft|in|cm|mm|kg|lb|oz)/g, (match, num, unit) => {
+      const words = numberToWords(parseFloat(num))
+      const unitMap: { [key: string]: string } = {
+        km: 'kilometers',
+        mi: 'miles',
+        m: 'meters',
+        ft: 'feet',
+        in: 'inches',
+        cm: 'centimeters',
+        mm: 'millimeters',
+        kg: 'kilograms',
+        lb: 'pounds',
+        oz: 'ounces'
+      }
+      return `${words} ${unitMap[unit] || unit}`
+    })
+    
+    // Convert ordinals
+    .replace(/(\d+)(st|nd|rd|th)/g, (match, num, suffix) => {
+      const words = numberToWords(parseInt(num))
+      return `${words}${suffix}`
+    })
+    
+    // Convert decimals
+    .replace(/(\d+)\.(\d+)/g, (match, whole, decimal) => {
+      const wholeWords = numberToWords(parseInt(whole))
+      const decimalDigits = decimal.split('').map(d => numberToWords(parseInt(d))).join(' ')
+      return `${wholeWords} point ${decimalDigits}`
+    })
+    
+    // Convert fractions
+    .replace(/(\d+)\/(\d+)/g, (match, num, denom) => {
+      const numWords = numberToWords(parseInt(num))
+      const denomWords = numberToWords(parseInt(denom))
+      return `${numWords} ${denomWords}`
+    })
+    
+    // Convert keyboard shortcuts
+    .replace(/Ctrl\s*\+\s*([A-Z])/g, 'control $1')
+    .replace(/Cmd\s*\+\s*([A-Z])/g, 'command $1')
+    .replace(/Alt\s*\+\s*([A-Z])/g, 'alt $1')
+    .replace(/Shift\s*\+\s*([A-Z])/g, 'shift $1')
+    
+    // Convert URLs
+    .replace(/([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)/g, (match, domain, tld, path) => {
+      return `${domain} dot ${tld} slash ${path}`
+    })
+    
+    // Expand common abbreviations
+    .replace(/\bDr\./g, 'Doctor')
+    .replace(/\bMr\./g, 'Mister')
+    .replace(/\bMrs\./g, 'Missus')
+    .replace(/\bMs\./g, 'Miss')
+    .replace(/\bAve\./g, 'Avenue')
+    .replace(/\bSt\./g, 'Street')
+    .replace(/\bRd\./g, 'Road')
+    .replace(/\bBlvd\./g, 'Boulevard')
+    .replace(/\bLn\./g, 'Lane')
+    .replace(/\bApt\./g, 'Apartment')
+    .replace(/\bInc\./g, 'Incorporated')
+    .replace(/\bCorp\./g, 'Corporation')
+    .replace(/\bLtd\./g, 'Limited')
+    .replace(/\bCo\./g, 'Company')
+    .replace(/\bvs\./g, 'versus')
+    .replace(/\betc\./g, 'et cetera')
+    .replace(/\bi\.e\./g, 'that is')
+    .replace(/\be\.g\./g, 'for example')
+    .replace(/\bAM\b/g, 'A M')
+    .replace(/\bPM\b/g, 'P M')
+    .replace(/\bEST\b/g, 'Eastern Standard Time')
+    .replace(/\bPST\b/g, 'Pacific Standard Time')
+    .replace(/\bCST\b/g, 'Central Standard Time')
+    .replace(/\bMST\b/g, 'Mountain Standard Time')
+    .replace(/\bGMT\b/g, 'Greenwich Mean Time')
+    .replace(/\bUTC\b/g, 'Coordinated Universal Time')
+    
+    // Convert standalone numbers (4+ digits)
+    .replace(/\b(\d{4,})\b/g, (match, num) => {
+      return numberToWords(parseInt(num))
+    })
+    
+    // Convert standalone numbers (1-3 digits) that aren't already converted
+    .replace(/\b(\d{1,3})\b/g, (match, num) => {
+      // Only convert if it's not part of a larger expression
+      return numberToWords(parseInt(num))
+    })
+}
+
+// Helper function to convert numbers to words
+function numberToWords(num: number): string {
+  if (num === 0) return 'zero'
+  if (num < 0) return `negative ${numberToWords(Math.abs(num))}`
+  
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+  const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+  
+  if (num < 10) return ones[num]
+  if (num < 20) return teens[num - 10]
+  if (num < 100) {
+    const ten = Math.floor(num / 10)
+    const one = num % 10
+    return tens[ten] + (one > 0 ? ` ${ones[one]}` : '')
+  }
+  if (num < 1000) {
+    const hundred = Math.floor(num / 100)
+    const remainder = num % 100
+    return ones[hundred] + ' hundred' + (remainder > 0 ? ` ${numberToWords(remainder)}` : '')
+  }
+  if (num < 1000000) {
+    const thousand = Math.floor(num / 1000)
+    const remainder = num % 1000
+    return numberToWords(thousand) + ' thousand' + (remainder > 0 ? ` ${numberToWords(remainder)}` : '')
+  }
+  if (num < 1000000000) {
+    const million = Math.floor(num / 1000000)
+    const remainder = num % 1000000
+    return numberToWords(million) + ' million' + (remainder > 0 ? ` ${numberToWords(remainder)}` : '')
+  }
+  
+  // For very large numbers, just return the original
+  return num.toString()
+}
+
+// Helper function to spell out individual digits
+function spellOutDigits(num: string): string {
+  return num
+    .split('')
+    .map(digit => numberToWords(parseInt(digit)))
+    .join(' ')
+}
+
 export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
   voice_1: {
-    voiceId: 'pNInz6obpgDQGcFmaJgB', // Grace - female meditative wake up voice
+    voiceId: 'wdRkW5c5eYi8vKR8E4V9',
     name: 'Grace',
-    description: 'Female meditative wake up voice - soft pacing and calm rhythm',
+    description: 'Female meditative wake up voice - even slower pacing and gentle tone',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.5,
+    stability: 0.6, // smoother delivery
     similarityBoost: 0.75,
-    style: 0.0,
-    useSpeakerBoost: true
+    style: 0.05, // lower for calmer tone
+    useSpeakerBoost: true,
+    pauseAfterSentences: 1.5 // extended pause for meditation feel
   },
   voice_2: {
-    voiceId: 'pFZP5JQG7iQjIQuC4Bku', // Adam - male drill sergeant voice
-    name: 'Adam', 
-    description: 'Male drill sergeant voice - high energy and commanding authority',
+    voiceId: 'wBXNqKUATyqu0RtYt25i',
+    name: 'Adam',
+    description: 'Male drill sergeant voice - amped up like Major Payne, aggressive and commanding',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.3,
-    similarityBoost: 0.75,
-    style: 0.0,
-    useSpeakerBoost: true
+    stability: 0.2, // more vocal unpredictability
+    similarityBoost: 0.6,
+    style: 0.9, // max assertiveness
+    useSpeakerBoost: true,
+    pauseAfterSentences: 0.3 // fast pacing
   },
   voice_3: {
-    voiceId: 'VR6AewLTigWG4xSOukaG', // Matthew - male narrative voice
+    voiceId: 'QczW7rKFMVYyubTC1QDk',
     name: 'Matthew',
-    description: 'Male narrative voice - calm, neutral tone and medium pacing',
+    description: 'Male narrative voice - Michael Barbaro style with steady rhythm and journalistic warmth',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.4,
-    similarityBoost: 0.75,
-    style: 0.0,
-    useSpeakerBoost: true
+    stability: 0.6, // more consistent tone
+    similarityBoost: 0.8,
+    style: 0.1, // calm and neutral
+    useSpeakerBoost: true,
+    pauseAfterSentences: 1.25 // slightly slower for dramatic effect
   }
 }
 
-// Default voice if none specified
-export const DEFAULT_VOICE = 'voice_3'
-
-// ElevenLabs API Configuration
+export const DEFAULT_VOICE = 'voice_1'
 export const ELEVEN_LABS_API_BASE = 'https://api.elevenlabs.io/v1'
-export const ELEVEN_LABS_TIMEOUT_MS = 60000 // 60 seconds for audio generation
-export const ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT = 5000 // Eleven Multilingual v2 character limit
-export const DEFAULT_OUTPUT_FORMAT = 'aac' // Default audio format
+export const ELEVEN_LABS_TIMEOUT_MS = 60000
+export const ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT = 5000
+export const DEFAULT_OUTPUT_FORMAT = 'aac'
 
-// Voice-specific text preprocessing
 export function preprocessTextForVoice(text: string, voice: string): string {
   const voiceConfig = VOICE_CONFIGS[voice] || VOICE_CONFIGS[DEFAULT_VOICE]
-  
-  // Check character limit for Eleven Multilingual v2
+
   if (text.length > ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT) {
-    console.warn(`Text length (${text.length}) exceeds Eleven Multilingual v2 limit (${ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT}). Truncating.`)
+    console.warn(`Text length (${text.length}) exceeds ElevenLabs limit. Truncating.`)
     text = text.substring(0, ELEVEN_MULTILINGUAL_V2_CHAR_LIMIT)
   }
-  
-  // Remove any unsupported SSML tags that might have been added
+
   let processedText = text
-    .replace(/<[^>]*>/g, '') // Remove any HTML/XML tags
-    .replace(/\[pause\s+\d+s?\]/gi, '') // Remove pause tags (ElevenLabs handles pauses differently)
-    .replace(/\[take\s+a\s+breath\]/gi, '') // Remove breath tags
+    .replace(/<[^>]*>/g, '')
     .trim()
-  
-  // Add natural pauses for voice-specific pacing
-  switch (voice) {
-    case 'voice_1': // Grace - meditative
-      // Add longer pauses for meditative pacing
-      processedText = processedText.replace(/\./g, '... ')
-      processedText = processedText.replace(/,/g, ', ')
-      break
-      
-    case 'voice_2': // Adam - drill sergeant
-      // Shorter, more direct pacing
-      processedText = processedText.replace(/\./g, '. ')
-      break
-      
-    case 'voice_3': // Matthew - narrative
-    default:
-      // Standard narrative pacing
-      processedText = processedText.replace(/\./g, '. ')
-      processedText = processedText.replace(/,/g, ', ')
-      break
+
+  // Apply text normalization for TTS clarity
+  processedText = normalizeTextForTTS(processedText)
+
+  // Normalize ElevenLabs tags and inject pacing
+  const sentences = processedText.split(/(?<=[.?!])\s+/)
+  let output: string[] = []
+
+  for (let i = 0; i < sentences.length; i++) {
+    let sentence = sentences[i]
+    output.push(sentence)
+
+    // Apply pauses based on voice pacing using new ElevenLabs break format
+    if (voice === 'voice_1') output.push('<break time="1.5s" />')
+    else if (voice === 'voice_2') output.push('<break time="0.5s" />')
+    else output.push('<break time="1s" />')
   }
-  
-  return processedText
+
+  return output.join(' ').replace(/\s+/g, ' ').trim()
 }
 
-// Validate voice configuration
 export function isValidVoice(voice: string): voice is keyof typeof VOICE_CONFIGS {
   return voice in VOICE_CONFIGS
 }
 
-// Get voice configuration
 export function getVoiceConfig(voice: string): VoiceConfig {
   return VOICE_CONFIGS[voice] || VOICE_CONFIGS[DEFAULT_VOICE]
 }
 
-// Build TTS request payload
 export function buildTTSRequest(text: string, voice: string): TTSRequest {
   const voiceConfig = getVoiceConfig(voice)
   const processedText = preprocessTextForVoice(text, voice)
-  
+
   return {
     text: processedText,
     model_id: voiceConfig.modelId,
@@ -139,4 +291,4 @@ export function buildTTSRequest(text: string, voice: string): TTSRequest {
       use_speaker_boost: voiceConfig.useSpeakerBoost
     }
   }
-} 
+}

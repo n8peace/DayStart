@@ -51,17 +51,26 @@ RAPID_API_KEY=your_rapid_api_key
 - **Used by**: `generate-sports-content`
 
 ### **6. Yahoo Finance API (via Rapid API)**
-- **Endpoint**: `https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-quotes`
-- **Parameters**: `symbols=^GSPC,^DJI,^IXIC`, `region=US`
+- **Endpoint**: `https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes`
+- **Parameters**: `symbols=^GSPC,^DJI,^TNX`, `region=US`
 - **Headers**: `X-RapidAPI-Key`, `X-RapidAPI-Host: apidojo-yahoo-finance-v1.p.rapidapi.com`
-- **Example**: `https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-quotes?symbols=^GSPC,^DJI,^IXIC&region=US`
-- **Used by**: `generate-markets-content`
+- **Example**: `https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes?symbols=^GSPC,^DJI,^TNX&region=US`
+- **Used by**: `generate-markets-content` (v2.0-enhanced)
+- **Enhanced Features**: Market trend analysis, importance scoring, volatility assessment
 
 ### **7. News API (Business Category)**
 - **Endpoint**: `https://newsapi.org/v2/top-headlines`
-- **Parameters**: `category=business`, `country=us`, `apiKey`, `pageSize=3`
-- **Example**: `https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=KEY&pageSize=3`
-- **Used by**: `generate-markets-content`
+- **Parameters**: `category=business`, `country=us`, `apiKey`, `pageSize=8`
+- **Example**: `https://newsapi.org/v2/top-headlines?category=business&country=us&apiKey=KEY&pageSize=8`
+- **Used by**: `generate-markets-content` (v2.0-enhanced)
+- **Enhanced Features**: Business news scoring, market relevance weighting, source reliability assessment
+
+### **8. News API (Sports Category)**
+- **Endpoint**: `https://newsapi.org/v2/top-headlines`
+- **Parameters**: `category=sports`, `country=us`, `apiKey`, `pageSize=5`
+- **Example**: `https://newsapi.org/v2/top-headlines?category=sports&country=us&apiKey=KEY&pageSize=5`
+- **Used by**: `generate-sports-content` (v2.0-enhanced)
+- **Enhanced Features**: Sports news scoring, sports relevance weighting, source reliability assessment
 
 ## 🔄 Rate Limits
 
@@ -87,17 +96,29 @@ All functions include comprehensive error handling:
 ## 📊 Data Processing
 
 ### **Content Generation Flow**
-1. **Fetch API data** with error handling
-2. **Log API calls** to `logs` table
-3. **Extract key information** from responses
-4. **Create text summaries** for AI script generation
-5. **Store in content_blocks** with `content_ready` status
-6. **Log successful generation** to `logs` table
+1. **Fetch API data** with error handling and timeout protection
+2. **Log API calls** to `logs` table with detailed metadata
+3. **Process and score data** using enhanced algorithms (v2.0-enhanced)
+4. **Extract key information** from responses with importance weighting
+5. **Create text summaries** for AI script generation
+6. **Store in content_blocks** with `content_ready` status
+7. **Log successful generation** to `logs` table with processing metrics
+
+### **Enhanced Processing (v2.0-enhanced)**
+- **Market Data**: Importance scoring based on volume, market cap, and change magnitude
+- **Market Trend Analysis**: Bullish/bearish sentiment, volatility assessment, key movers identification
+- **Business News**: Source reliability, market relevance, recency, and content quality scoring
+- **Sports Data**: Importance scoring based on sport, status, and game closeness
+- **Sports News**: Source reliability, sports relevance, recency, and content quality scoring
+- **Sports Trend Analysis**: Activity levels, key events, and live game tracking
+- **Content Prioritization**: Data sorted by importance scores for optimal presentation
 
 ### **Data Storage**
 - **Raw API responses** stored in `parameters` JSONB field
+- **Processed and scored data** stored in `parameters` for analysis
 - **Text summaries** stored in `content` field
 - **Error information** stored in `parameters` for debugging
+- **Processing metrics** stored in `parameters` for monitoring
 - **Previous content** stored for repetition avoidance
 
 ## 🔧 Deployment Notes

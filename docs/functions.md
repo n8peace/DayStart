@@ -60,29 +60,38 @@ DayStart uses 11 Supabase Edge Functions to power its AI-driven content generati
 - Includes error information in parameters
 
 ### generate-sports-content
-**Purpose**: Creates sports updates and highlights  
+**Purpose**: Creates enhanced sports updates with dates, locations, and sports news  
 **Priority**: 4  
 **Frequency**: 4 hours  
-**Data Sources**: SportsDB API + ESPN API  
-**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)
+**Data Sources**: ESPN API (multiple sports) + News API (sports)  
+**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)  
+**Version**: 2.0-enhanced
 
 **Features**:
-- Fetches from multiple sports APIs
-- Includes today's and tomorrow's events
-- Handles multiple sports and leagues
-- Combines data from multiple sources
+- **Enhanced Sports Data Processing**: Importance scoring based on sport, status, and game closeness
+- **Date and Location Integration**: Includes game dates, times, and venue locations
+- **Sports News Integration**: News API sports headlines with relevance scoring
+- **Sports Trend Analysis**: Activity levels, key events, and live game tracking
+- **Fetches data from ESPN APIs** for major US sports (NFL, NBA, MLB, NHL, NCAA Football, NCAA Basketball)
+- **Handles API failures gracefully** with fallback content
+- **Provides comprehensive sports summaries** with scores, schedules, and news
 
 ### generate-markets-content
-**Purpose**: Creates financial market updates  
-**Priority**: 5*Frequency**: Hourly  
+**Purpose**: Creates enhanced financial market updates with trend analysis  
+**Priority**: 5  
+**Frequency**: Hourly  
 **Data Sources**: Yahoo Finance API + News API (business)  
-**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)
+**Status**: `content_ready` (partial failures OK) or `content_failed` (complete failure)  
+**Version**: 2.0-enhanced
 
 **Features**:
-- Fetches market data via Rapid API
-- Includes business news headlines
-- Handles API rate limits and failures
-- Provides market summaries and trends
+- **Enhanced Market Data Processing**: Importance scoring based on volume, market cap, and change magnitude
+- **Market Trend Analysis**: Bullish/bearish sentiment, volatility assessment, key movers identification
+- **Business News Scoring**: Source reliability, market relevance, recency, and content quality scoring
+- **Explicit Data Availability**: Clear messaging when APIs are unavailable or misconfigured
+- **Rich Content Generation**: Prioritized market data with trend summaries and top-scored business news
+- **Enhanced Logging**: Processing version tracking, detailed analysis metrics, API key status logging
+- **Fallback Handling**: Graceful degradation with explicit fallback content messaging
 
 ### generate-encouragement-content
 **Purpose**: Creates motivational content in5ories  
