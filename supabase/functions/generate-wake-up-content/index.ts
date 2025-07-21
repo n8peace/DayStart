@@ -1,4 +1,4 @@
-// Last Updated: 2024-07-20
+// Last Updated: 2024-07-21
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ContentBlock, LogEntry } from '../shared/types.ts'
@@ -77,7 +77,10 @@ serve(async (req) => {
     const expirationDate = new Date(tomorrowDate)
     expirationDate.setHours(expirationDate.getHours() + 72)
     const expirationDateStr = expirationDate.toISOString().split('T')[0]
-    const yesterdayDate = utcDate(-1)
+    // Calculate previousDate as one day before tomorrowDate
+    const previousDateObj = new Date(tomorrowDate)
+    previousDateObj.setUTCDate(previousDateObj.getUTCDate() - 1)
+    const previousDate = previousDateObj.toISOString().split('T')[0]
 
     let executionStatus = 'completed'
     let apiCallCount = 0
@@ -88,7 +91,7 @@ serve(async (req) => {
         .from('content_blocks')
         .select('content')
         .eq('content_type', 'wake_up')
-        .eq('date', yesterdayDate)
+        .eq('date', previousDate)
         .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
         .not('status', ContentBlockStatus.CONTENT_FAILED)
         .limit(1)
