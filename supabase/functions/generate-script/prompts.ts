@@ -17,9 +17,66 @@ export interface ContentPrompt {
 const VOICE_INSTRUCTIONS = {
   voice_1: `Speak as a meditative morning guide. Use short, calm phrases with natural rhythm. Favor gentle, grounded language that invites presence without sounding poetic. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas to allow for reflection. Avoid complex or dramatic metaphors — instead, focus on clarity, calm, and a steady emotional cadence. You are offering quiet confidence and peace. Examples: "You're here. This moment matters." or "Take one breath. Then another."`,
 
-  voice_2: `Speak like a disciplined motivator — think drill sergeant, but respectful. Use short, punchy, motivational phrases. Speak fast, sharp, and direct. Avoid yelling or jokes. Insert <break time="0.5s" /> after commands or list items to keep energy moving. Use action verbs. Examples: "Get up. Now." "You know what to do." "No excuses. Let's go." You are there to move them into action, not soothe them.`,
+  voice_2: `Speak like a no-nonsense drill sergeant. Every sentence is a command. Your voice is sharp, fast, and loud — but never comical. Never apologize. Never ask. Never explain. You give orders. Use clipped sentences and barked phrases. Avoid transitions. Keep momentum high.
+
+Use action verbs: Get. Move. Push. Own. Crush. Do not say things like "maybe," "try," or "consider." You don’t motivate — you command.
+
+Insert <break time="0.4s" /> after each command or thought to maintain rapid-fire rhythm. Be relentless. Be exact.
+
+Examples: 
+- "WAKE UP! Feet. Floor. Now." 
+- "You’ve got 30 minutes. Don’t waste a second."
+- "No coffee until that checklist is DONE."
+
+Do NOT:
+- Use inspirational fluff.
+- Ask rhetorical questions.
+- Use casual language or jokes.
+- Ever use the word 'let’s' or 'maybe'.
+
+You're not a coach. You're not a friend. You are the force that gets them out of bed — whether they like it or not.`,
 
   voice_3: `Speak like a steady, trusted narrator. Warm, clear, and conversational — like a podcast host or NPR journalist. Use short to medium-length sentences with slight pacing variation. Insert <break time="1s" /> between meaningful thoughts to give listeners space to process. Avoid embellishment or dramatic flair. You are friendly, confident, and informed. Examples: "It's Tuesday. Here's what to expect today." or "Let’s take a minute to think about where you're heading."`
+}
+
+// Voice-specific phrase library for prompt injection
+export const VOICE_PHRASE_LIB: Record<string, { openers: string[]; transitions: string[] }> = {
+  voice_1: {
+    openers: [
+      "Take a deep breath.",
+      "Let’s begin this morning together.",
+      "Welcome to a new day."
+    ],
+    transitions: [
+      "Now, gently shift your attention...",
+      "Let’s pause for a moment...",
+      "As you continue, notice your breath..."
+    ]
+  },
+  voice_2: {
+    openers: [
+      "Up. Now.",
+      "Let’s get moving.",
+      "No excuses. Let’s go."
+    ],
+    transitions: [
+      "Next. Move.",
+      "Don’t stop.",
+      "Keep going."
+    ]
+  },
+  voice_3: {
+    openers: [
+      "It’s ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}.",
+      "Here’s what’s ahead today.",
+      "Let’s take a look at your morning."
+    ],
+    transitions: [
+      "Meanwhile...",
+      "In other news...",
+      "Let’s shift gears."
+    ]
+  }
 }
 
 // Global formatting restrictions
@@ -77,8 +134,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, dayOfWeek, holidayData } = params
-      return `Review and expand this wake-up message for ${date} (${dayOfWeek}):
+      const { date, dayOfWeek, holidayData, voice } = params
+      let prompt = `Review and expand this wake-up message for ${date} (${dayOfWeek}):
 
 ORIGINAL CONTENT:
 ${content}
@@ -89,6 +146,8 @@ ${holidayData ? `Holiday information: ${JSON.stringify(holidayData)}` : ''}
 
 Requirements:
 - Start with "It's [day of the week], [date without year]." (e.g., "It's Monday, July twenty-first.")
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Create a coherent and grounded 90-second wake-up experience with clear flow and structure. Suggested outline:
   * Greeting and acknowledgment of the date
   * Reference the holiday if one is present, otherwise omit
@@ -101,9 +160,14 @@ Requirements:
   * Consider <break time="10s" /> only for deep pauses or silence-based reflection
 - Keep the tone focused, clean, and confident — avoid bouncing between unrelated ideas
 - Avoid lists of motivational quotes or generalities
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
     maxTokens: 1000,
     temperature: 0.5
@@ -116,8 +180,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, timeAvailable } = params
-      return `Review and refine this morning stretch routine for ${date}:
+      const { date, timeAvailable, voice } = params
+      let prompt = `Review and refine this morning stretch routine for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -130,14 +194,21 @@ Requirements:
 - Include breathing cues
 - Make it accessible for morning stiffness
 - Avoid complex movements
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
     maxTokens: 300,
     temperature: 0.5
@@ -150,8 +221,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, userGoals, challengeType } = params
-      return `Review and refine this daily challenge for ${date}:
+      const { date, userGoals, challengeType, voice } = params
+      let prompt = `Review and refine this daily challenge for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -168,16 +239,23 @@ Requirements:
 - Include why this challenge matters
 - Provide clear success criteria
 - Make it inspiring and motivating
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
-    maxTokens: 250,
+    maxTokens: 200,
     temperature: 0.8
   },
 
@@ -188,8 +266,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, location, weatherData } = params
-      return `Review and refine this weather report for ${date} in ${location}:
+      const { date, location, weatherData, voice } = params
+      let prompt = `Review and refine this weather report for ${date} in ${location}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -203,14 +281,21 @@ Requirements:
 - Keep it conversational and engaging
 - Include any weather alerts or warnings
 - Make it relevant to morning planning
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
     maxTokens: 200,
     temperature: 0.6
@@ -223,8 +308,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, encouragementType } = params
-      return `Review and expand this encouraging message for ${date}:
+      const { date, encouragementType, voice } = params
+      let prompt = `Review and expand this encouraging message for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -245,16 +330,23 @@ Requirements:
 - Avoid repetitive sources - vary between ancient and modern, Eastern and Western
 - Connect the quote directly to the original content's theme or message
 - Include actionable positive thinking that builds on the original content
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
-    maxTokens: 350,
+    maxTokens: 200,
     temperature: 0.9
   },
 
@@ -265,14 +357,14 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, userInterests } = params
+      const { date, userInterests, voice } = params
 
-      return `Rewrite this daily headline summary for ${date} in a more natural and podcast-ready format.
+      let prompt = `Rewrite this daily headline summary for ${date} in a more natural and podcast-ready format.
 
 ORIGINAL CONTENT:
 ${content}
 
-Available Time: ~90 seconds of audio (about 250-300 words)
+Available Time: ~90 seconds of audio (about 250-300 words, strict max)
 
 User interests: ${userInterests || 'general'}
 
@@ -281,11 +373,15 @@ Instructions:
 - Vary pacing and tone based on importance: Top stories get ~3 sentences, others may get 1–2
 - Use natural phrasing and pacing that feels human — as if read aloud by a podcast host
 - Emphasize context and meaning. Don't just stack headlines. Guide the listener through the flow
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use <break time="1s" /> between most stories, and <break time="2s" /> between major sections
 - For voice_3: use conversational phrases, light humor or pauses where fitting — but no editorializing
 - For voice_1: slower pacing, calm transitions, emphasize clarity and reflection
 - For voice_2: sharp delivery, strong transitions, don't linger too long on each story
 - Close with a grounded wrap-up or nod to what's ahead
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 DO NOT:
 - Repeat the day or date unless it's part of a headline
@@ -298,8 +394,12 @@ Format output as plain text for ElevenLabs TTS.
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
-    maxTokens: 1500,
+    maxTokens: 350,
     temperature: 0.65
   },
 
@@ -310,8 +410,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, dayOfWeek, userTeams, sportType, recentGames } = params
-      return `Review and refine this US sports update for ${dayOfWeek}, ${date}:
+      const { date, dayOfWeek, userTeams, sportType, recentGames, voice } = params
+      let prompt = `Review and refine this US sports update for ${dayOfWeek}, ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -338,6 +438,10 @@ Format the response as plain text for ElevenLabs.
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
     maxTokens: 350,
     temperature: 0.7
@@ -350,8 +454,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { date, marketData, userInvestments, marketFocus } = params
-      return `Review and refine this markets update for ${date}:
+      const { date, marketData, userInvestments, marketFocus, voice } = params
+      let prompt = `Review and refine this markets update for ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -375,6 +479,10 @@ Format the response as plain text for ElevenLabs.
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
     maxTokens: 250,
     temperature: 0.6
@@ -387,8 +495,8 @@ Voice Style Instructions: ${VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTR
 
 ${FORMATTING_RESTRICTIONS}`,
     userPrompt: (content: string, params: PromptParameters) => {
-      const { userName, reminders, date, reminderTone } = params
-      return `Review and refine these personalized reminders for ${userName} on ${date}:
+      const { userName, reminders, date, reminderTone, voice } = params
+      let prompt = `Review and refine these personalized reminders for ${userName} on ${date}:
 
 ORIGINAL CONTENT:
 ${content}
@@ -404,16 +512,23 @@ Requirements:
 - Group related reminders
 - Use positive language
 - Make it feel helpful, not overwhelming
+- Stick to a single core theme or idea. Do not shift topics mid-script.
+- The first sentence should reflect the tone immediately — no slow ramp.
 - Use ElevenLabs break tags to control pacing
-- Follow the voice style instructions in the system prompt
+- Voice-specific phrase library has been provided.
+- Use phrasing consistent with ${voice}: for example, openings like "${VOICE_PHRASE_LIB[voice].openers[0]}" and transitions like "${VOICE_PHRASE_LIB[voice].transitions[0]}"
 
 Format the response as plain text for ElevenLabs.
 
 ${NO_FLUFF_INSTRUCTION}
 
 ${TTS_FORMATTING_INSTRUCTION}`
+      if (voice === 'voice_2') {
+        prompt += "\n\nAdd: At least 3 hard-hitting commands. Keep sentences under 8 words. Format like barked orders. Think military cadence.";
+      }
+      return prompt;
     },
-    maxTokens: 350,
+    maxTokens: 200,
     temperature: 0.7
   }
 }
