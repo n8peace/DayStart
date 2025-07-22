@@ -287,11 +287,11 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     const forecast = weatherInfo.forecast || {}
     
     weather = {
-      temperature: current.temperature || forecast.high,
-      condition: current.condition,
-      humidity: current.humidity,
-      wind_speed: current.wind_speed,
-      description: `${current.condition} with a high of ${forecast.high}°F and low of ${forecast.low}°F`
+      temperature: current.temperature || forecast.high || weatherInfo.temp,
+      condition: current.condition || weatherInfo.summary,
+      humidity: current.humidity || 0,
+      wind_speed: current.wind_speed || 0,
+      description: `${current.condition || weatherInfo.summary} with a high of ${forecast.high || weatherInfo.temp}°F and low of ${forecast.low || (weatherInfo.temp - 10)}°F`
     }
     
     // Only include weather if we have valid temperature and condition data
