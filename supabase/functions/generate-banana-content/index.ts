@@ -201,11 +201,22 @@ async function processBananaContent(supabaseClient: any, userId: string): Promis
       content_type: 'banana',
       date: utcDateStr,
       script: script,
+      script_generated_at: new Date().toISOString(),
       status: ContentBlockStatus.SCRIPT_GENERATED,
       voice: userData.voice,
       content_priority: 1,
       expiration_date: expirationDateStr,
       language_code: 'en-US',
+      content: JSON.stringify({
+        user_name: userData.name,
+        city: userData.city,
+        state: userData.state,
+        weather: userData.weather,
+        headlines: userData.headlines,
+        markets: userData.markets,
+        day_of_week: userData.dayOfWeek,
+        date: userData.date
+      }),
       parameters: {
         user_name: userData.name,
         city: userData.city,
