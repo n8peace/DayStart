@@ -275,9 +275,9 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     .eq('content_type', 'headlines')
     .eq('date', date)
     .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
-    .single()
+    .limit(1)
 
-  if (headlinesError || !headlinesData) {
+  if (headlinesError || !headlinesData || headlinesData.length === 0) {
     throw new Error(`Failed to fetch headlines: ${headlinesError?.message || 'No headlines found'}`)
   }
 
@@ -288,15 +288,15 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     .eq('content_type', 'markets')
     .eq('date', date)
     .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
-    .single()
+    .limit(1)
 
-  if (marketsError || !marketsData) {
+  if (marketsError || !marketsData || marketsData.length === 0) {
     throw new Error(`Failed to fetch market data: ${marketsError?.message || 'No market data found'}`)
   }
 
   // Parse headlines to extract business, political, and pop culture
-  const headlines = parseHeadlines(headlinesData.content)
-  const markets = parseMarkets(marketsData.content)
+  const headlines = parseHeadlines(headlinesData[0].content)
+  const markets = parseMarkets(marketsData[0].content)
 
   // Parse weather data from JSONB structure
   const weatherInfo = weatherData.weather_data
