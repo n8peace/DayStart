@@ -255,11 +255,11 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     throw new Error(`Failed to fetch user preferences: ${prefsError?.message || 'No preferences found'}`)
   }
 
-  // Get weather data
+  // Get weather data using user's zipcode
   const { data: weatherData, error: weatherError } = await supabaseClient
     .from('user_weather_data')
     .select('*')
-    .eq('user_id', userId)
+    .eq('location_key', userPrefs.location_zip)
     .eq('date', date)
     .not('expires_at', 'lt', new Date().toISOString())
     .single()
@@ -298,17 +298,23 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
   const headlines = parseHeadlines(headlinesData.content)
   const markets = parseMarkets(marketsData.content)
 
+  // Parse weather data from JSONB structure
+  const weatherInfo = weatherData.weather_data
+  const location = weatherInfo.location || {}
+  const current = weatherInfo.current || {}
+  const forecast = weatherInfo.forecast || {}
+
   return {
     name: userPrefs.name || 'there',
-    city: userPrefs.city || 'your area',
-    state: userPrefs.state || '',
+    city: userPrefs.city || location.city || 'your area',
+    state: userPrefs.state || location.state || '',
     voice: userPrefs.voice || 'voice_1',
     weather: {
-      temperature: weatherData.temperature,
-      condition: weatherData.condition,
-      humidity: weatherData.humidity,
-      wind_speed: weatherData.wind_speed,
-      description: weatherData.description
+      temperature: current.temperature || forecast.high || 70,
+      condition: current.condition || 'Unknown',
+      humidity: current.humidity || 50,
+      wind_speed: current.wind_speed || 5,
+      description: `${current.condition || 'Unknown'} with a high of ${forecast.high || 'N/A'}°F and low of ${forecast.low || 'N/A'}°F`
     },
     headlines: headlines,
     markets: markets
