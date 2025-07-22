@@ -63,6 +63,9 @@ serve(async (req: Request) => {
     user_id,
     timezone: 'America/New_York',
     location_zip: '10001',
+    name: 'Test User',
+    city: 'New York',
+    state: 'NY',
     voice: 'voice_1',
   }
 
