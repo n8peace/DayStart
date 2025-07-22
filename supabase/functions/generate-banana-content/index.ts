@@ -39,7 +39,7 @@ interface UserData {
   voice: string
   dayOfWeek: string
   date: string
-  weather: WeatherData
+  weather?: WeatherData
   headlines: HeadlineData
   markets: MarketData
 }
@@ -211,7 +211,7 @@ async function processBananaContent(supabaseClient: any, userId: string): Promis
         user_name: userData.name,
         city: userData.city,
         state: userData.state,
-        weather: userData.weather,
+        weather: userData.weather || null,
         headlines: userData.headlines,
         markets: userData.markets,
         day_of_week: userData.dayOfWeek,
@@ -268,7 +268,8 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     throw new Error(`Failed to fetch user preferences: ${prefsError?.message || 'No preferences found'}`)
   }
 
-  // Get weather data using user's zipcode
+  // Get weather data using user's zipcode (optional)
+  let weather: WeatherData | undefined = undefined
   const { data: weatherData, error: weatherError } = await supabaseClient
     .from('user_weather_data')
     .select('*')
@@ -277,8 +278,25 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     .not('expires_at', 'lt', new Date().toISOString())
     .single()
 
-  if (weatherError || !weatherData) {
-    throw new Error(`Failed to fetch weather data: ${weatherError?.message || 'No weather data found'}`)
+  if (!weatherError && weatherData) {
+    // Parse weather data from JSONB structure
+    const weatherInfo = weatherData.weather_data
+    const location = weatherInfo.location || {}
+    const current = weatherInfo.current || {}
+    const forecast = weatherInfo.forecast || {}
+    
+    weather = {
+      temperature: current.temperature || forecast.high,
+      condition: current.condition,
+      humidity: current.humidity,
+      wind_speed: current.wind_speed,
+      description: `${current.condition} with a high of ${forecast.high}°F and low of ${forecast.low}°F`
+    }
+    
+    // Only include weather if we have valid temperature and condition data
+    if (!weather.temperature || !weather.condition) {
+      weather = undefined
+    }
   }
 
   // Get most recent headlines content block
@@ -311,29 +329,17 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
   const headlines = extractHeadlinesFromContent(headlinesData[0])
   const markets = extractMarketsFromContent(marketsData[0])
 
-  // Parse weather data from JSONB structure
-  const weatherInfo = weatherData.weather_data
-  const location = weatherInfo.location || {}
-  const current = weatherInfo.current || {}
-  const forecast = weatherInfo.forecast || {}
-
   // Get day of week and date for the current date
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' })
   
   return {
     name: userPrefs.name || 'there',
-    city: userPrefs.city || location.city || 'your area',
-    state: userPrefs.state || location.state || '',
+    city: userPrefs.city || 'your area',
+    state: userPrefs.state || '',
     voice: userPrefs.voice || 'voice_1',
     dayOfWeek: dayOfWeek,
     date: date,
-    weather: {
-      temperature: current.temperature || forecast.high || 70,
-      condition: current.condition || 'Unknown',
-      humidity: current.humidity || 50,
-      wind_speed: current.wind_speed || 5,
-      description: `${current.condition || 'Unknown'} with a high of ${forecast.high || 'N/A'}°F and low of ${forecast.low || 'N/A'}°F`
-    },
+    weather: weather,
     headlines: headlines,
     markets: markets
   }
@@ -423,10 +429,10 @@ User Information:
 - Voice: ${userData.voice}
 - Date: ${userData.dayOfWeek}, ${userData.date}
 
-Current Weather:
+${userData.weather ? `Current Weather:
 - Temperature: ${userData.weather.temperature}°F
 - Condition: ${userData.weather.condition}
-- Description: ${userData.weather.description}
+- Description: ${userData.weather.description}` : ''}
 
 Today's Headlines:
 - Business: ${userData.headlines.business}
@@ -440,18 +446,13 @@ Requirements:
 1. Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")
 2. Make it funny and engaging while maintaining the voice style
 3. Include the user's name naturally
-4. Reference the weather in a humorous way
-5. Mention one or two headlines in a funny context
-6. Include a brief market reference
-7. Keep it between 90-120 seconds when spoken
-8. Use ElevenLabs break tags to control pacing:
-   - Use <break time="1s" /> between thoughts
-   - Use <break time="2s" /> for emphasis
-   - Use <break time="0.5s" /> for quick transitions
-9. Make it feel personal and conversational
-10. Use voice-specific phrasing: openings like "${VOICE_PHRASE_LIB[userData.voice]?.openers[0] || 'Good morning'}" and transitions like "${VOICE_PHRASE_LIB[userData.voice]?.transitions[0] || 'Now'}"
-11. Format all numbers, dates, and abbreviations for speech synthesis
-12. Avoid metaphors, sentimentality, or poetic flourishes
+${userData.weather ? '4. Reference the weather in a humorous way' : ''}
+${userData.weather ? '5. Mention one or two headlines in a funny context' : '4. Mention one or two headlines in a funny context'}
+${userData.weather ? '6. Include a brief market reference' : '5. Include a brief market reference'}
+${userData.weather ? '7. Keep it between 90-120 seconds when spoken' : '6. Keep it between 90-120 seconds when spoken'}
+${userData.weather ? '8. Use ElevenLabs break tags to control pacing, formatting example <break time="1s" />' : '7. Use ElevenLabs break tags to control pacing, formatting example <break time="1s" />'}
+${userData.weather ? '9. Make it feel personal and conversational' : '8. Make it feel personal and conversational'}
+${userData.weather ? '10. Format all numbers, dates, and abbreviations for speech synthesis' : '9. Format all numbers, dates, and abbreviations for speech synthesis'}
 
 ${NO_FLUFF_INSTRUCTION}
 
@@ -508,29 +509,31 @@ ${FORMATTING_RESTRICTIONS}`
 
 // Voice-specific instructions from generate-script prompts.ts
 const VOICE_INSTRUCTIONS = {
-  voice_1: `Speak as a meditative morning guide. Use short, calm phrases with natural rhythm. Favor gentle, grounded language that invites presence without sounding poetic. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas to allow for reflection. Avoid complex or dramatic metaphors — instead, focus on clarity, calm, and a steady emotional cadence. You are offering quiet confidence and peace. Examples: "You're here. This moment matters." or "Take one breath. Then another."`,
+  voice_1: `You're the Banana Zen Master. Speak slowly, like your blood pressure has never spiked. Use short, grounded phrases with a hint of cosmic indifference — but make it funny if they’re listening closely. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas. No metaphors. No poetry. Just... stillness, facts, and a lowkey roast of human busyness.
 
-  voice_2: `Speak like a no-nonsense drill sergeant. Every sentence is a command. Your voice is sharp, fast, and loud — but never comical. Never apologize. Never ask. Never explain. You give orders. Use clipped sentences and barked phrases. Avoid transitions. Keep momentum high.
+Examples:
+- "You’re here. That’s enough — for now."
+- "The world will still spin if you’re five minutes late."`,
 
-Use action verbs: Get. Move. Push. Own. Crush. Do not say things like "maybe," "try," or "consider." You don't motivate — you command.
+  voice_2: `You're the Banana Sergeant — loud, fast, and allergic to excuses. Speak like a furious alarm clock with opinions. Every sentence is a command. Insert <break time="0.4s" /> between orders like you’re running a sleep-deprivation bootcamp. Keep it tight. Keep it sharp. No fluff. No feelings. You're not motivational — you're inevitable.
 
-Insert <break time="0.4s" /> after each command or thought to maintain rapid-fire rhythm. Be relentless. Be exact.
-
-Examples: 
-- "WAKE UP! Feet. Floor. Now." 
-- "You've got 30 minutes. Don't waste a second."
-- "No coffee until that checklist is DONE."
+Examples:
+- "WAKE UP. No negotiations."
+- "Coffee? EARN IT."
+- "You’ve got 30 minutes. MOVE."
 
 Do NOT:
-- Use inspirational fluff.
-- Ask rhetorical questions.
-- Use casual language or jokes.
-- Ever use the word 'let's' or 'maybe'.
+- Use questions.
+- Get soft.
+- Say 'maybe' or 'let’s.'
+You’re not a vibe. You’re a weaponized banana with a mission.`,
 
-You're not a coach. You're not a friend. You are the force that gets them out of bed — whether they like it or not.`,
+  voice_3: `You’re the Banana Guide — steady, warm, slightly amused by life. Speak like a morning radio host who read the news, made a sarcastic face, and decided to make it sound okay. Use medium-length sentences with confident rhythm. Insert <break time="1s" /> between ideas to let it breathe. You're not dramatic, you're not dull — you're just... better than the default.
 
-  voice_3: `Speak like a steady, trusted narrator. Warm, clear, and conversational — like a podcast host or NPR journalist. Use short to medium-length sentences with slight pacing variation. Insert <break time="1s" /> between meaningful thoughts to give listeners space to process. Avoid embellishment or dramatic flair. You are friendly, confident, and informed. Examples: "It's Tuesday. Here's what to expect today." or "Let's take a minute to think about where you're heading."`
-}
+Examples:
+- "It’s Tuesday. Try not to fight the calendar."
+- "First meeting’s at nine. You’re already more prepared than half the room."`
+};
 
 // Voice-specific phrase library
 const VOICE_PHRASE_LIB: Record<string, { openers: string[]; transitions: string[] }> = {
@@ -579,16 +582,9 @@ CRITICAL FORMATTING RULES:
 - NEVER use emojis in the response
 - Write only the spoken content that will be converted to audio
 - Do not include stage directions, sound effects, or production notes (except supported tags like <break time="1s" />)
-- Focus purely on the verbal content that ElevenLabs will speak
-- DO NOT use nicknames, titles, or poetic phrases like "dear listener," "gentle giant," or "dance of the numbers."
-- DO NOT editorialize or anthropomorphize (e.g., "the S&P 500 took a nap").
-- Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
-- Eliminate filler words or overly inspirational openings. Start with substance.
+- Focus purely on the verbal content that ElevenLabs will speakT Headlines.
 - Use ElevenLabs supported break tags like <break time="1s" /> to control rhythm and energy.
 - Never say "no significant holidays today." If there is no holiday, omit this section.
-- Never say "data is unavailable" or "check back later."
-- If data is missing, focus on what you can. If there's insufficient data, reply back with an error code.
-- Skip filler or apology phrases when data is incomplete.
 
 TEXT-TO-SPEECH NORMALIZATION RULES:
 - Expand all numbers to their spoken form: "1234" → "one thousand two hundred thirty-four"
