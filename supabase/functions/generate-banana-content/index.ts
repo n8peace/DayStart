@@ -418,7 +418,10 @@ function extractMarketsFromContent(contentBlock: any): MarketData {
 async function generateBananaScript(userData: UserData): Promise<string> {
   const voicePrompt = getVoiceInstructions(userData.voice)
   const instructionOffset = userData.weather ? 0 : -1
-  
+
+  // Get the phrase library for the selected voice
+  const phraseLib = VOICE_PHRASE_LIB[userData.voice] || VOICE_PHRASE_LIB.voice_3;
+
   // Build requirements array with proper numbering
   const requirements = [
     `Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")`,
@@ -505,6 +508,14 @@ Break Tag Guidelines:
 - Use <break time="0.2" /> for punchy lists, rapid commands, or quick pauses
 - Use <break time="2s" /> for emphasis or dramatic effect
 - Use <break time="0.4s" /> for natural speech rhythm
+
+Phrase Library for this voice:
+- Openers: ${phraseLib.openers.join(' | ')}
+- Transitions: ${phraseLib.transitions.join(' | ')}
+- Weather: ${phraseLib.weather.join(' | ')}
+- Headlines: ${phraseLib.headlines.join(' | ')}
+- Markets: ${phraseLib.markets.join(' | ')}
+- Endings: ${phraseLib.endings.join(' | ')}
 
 ${FORMATTING_RESTRICTIONS}`
           },
