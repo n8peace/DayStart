@@ -402,7 +402,9 @@ async function generateBananaScript(userData: UserData): Promise<string> {
   
   const prompt = `You are a hilarious morning wake-up script writer. Create a 90-120 second funny morning wake-up script for Eleven Labs voice generation.
 
-${voicePrompt}
+Voice Style Instructions: ${VOICE_INSTRUCTIONS[userData.voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}
 
 User Information:
 - Name: ${userData.name}
@@ -425,14 +427,24 @@ ${userData.markets.summary}
 
 Requirements:
 1. Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")
-2. Make it funny and engaging
+2. Make it funny and engaging while maintaining the voice style
 3. Include the user's name naturally
 4. Reference the weather in a humorous way
 5. Mention one or two headlines in a funny context
 6. Include a brief market reference
 7. Keep it between 90-120 seconds when spoken
-8. Use natural speech patterns with pauses and emphasis
+8. Use ElevenLabs break tags to control pacing:
+   - Use <break time="1s" /> between thoughts
+   - Use <break time="2s" /> for emphasis
+   - Use <break time="0.5s" /> for quick transitions
 9. Make it feel personal and conversational
+10. Use voice-specific phrasing: openings like "${VOICE_PHRASE_LIB[userData.voice]?.openers[0] || 'Good morning'}" and transitions like "${VOICE_PHRASE_LIB[userData.voice]?.transitions[0] || 'Now'}"
+11. Format all numbers, dates, and abbreviations for speech synthesis
+12. Avoid metaphors, sentimentality, or poetic flourishes
+
+${NO_FLUFF_INSTRUCTION}
+
+${TTS_FORMATTING_INSTRUCTION}
 
 Write only the script text, no additional formatting or instructions.`
 
@@ -448,7 +460,18 @@ Write only the script text, no additional formatting or instructions.`
         messages: [
           {
             role: 'system',
-            content: 'You are a professional script writer specializing in funny, engaging morning wake-up content. Write in a conversational, natural speaking style.'
+            content: `You are a professional script writer specializing in funny, engaging morning wake-up content for Eleven Labs voice generation. Your role is to create personalized, humorous scripts that help users start their day with energy and positivity.
+
+Key Responsibilities:
+- Create 90-120 second scripts optimized for speech synthesis
+- Maintain voice-specific tone and pacing
+- Include personalized content (weather, headlines, markets)
+- Use proper Eleven Labs formatting and break tags
+- Ensure all text is optimized for natural speech output
+
+Voice Style: ${VOICE_INSTRUCTIONS[userData.voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+${FORMATTING_RESTRICTIONS}`
           },
           {
             role: 'user',
@@ -472,15 +495,111 @@ Write only the script text, no additional formatting or instructions.`
   }
 }
 
-function getVoiceSpecificPrompt(voice: string): string {
-  switch (voice) {
-    case 'voice_1':
-      return 'Voice Style: Female, meditative, calm, and soothing. Write in a gentle, encouraging tone that feels like a caring friend or mentor.'
-    case 'voice_2':
-      return 'Voice Style: Male, drill sergeant, energetic, and commanding. Write in a bold, motivational tone with lots of energy and enthusiasm.'
-    case 'voice_3':
-      return 'Voice Style: Male, narrative, warm, and conversational. Write in a friendly, storytelling tone that feels like a trusted friend sharing news.'
-    default:
-      return 'Voice Style: Friendly and conversational. Write in a warm, engaging tone.'
+// Voice-specific instructions from generate-script prompts.ts
+const VOICE_INSTRUCTIONS = {
+  voice_1: `Speak as a meditative morning guide. Use short, calm phrases with natural rhythm. Favor gentle, grounded language that invites presence without sounding poetic. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas to allow for reflection. Avoid complex or dramatic metaphors — instead, focus on clarity, calm, and a steady emotional cadence. You are offering quiet confidence and peace. Examples: "You're here. This moment matters." or "Take one breath. Then another."`,
+
+  voice_2: `Speak like a no-nonsense drill sergeant. Every sentence is a command. Your voice is sharp, fast, and loud — but never comical. Never apologize. Never ask. Never explain. You give orders. Use clipped sentences and barked phrases. Avoid transitions. Keep momentum high.
+
+Use action verbs: Get. Move. Push. Own. Crush. Do not say things like "maybe," "try," or "consider." You don't motivate — you command.
+
+Insert <break time="0.4s" /> after each command or thought to maintain rapid-fire rhythm. Be relentless. Be exact.
+
+Examples: 
+- "WAKE UP! Feet. Floor. Now." 
+- "You've got 30 minutes. Don't waste a second."
+- "No coffee until that checklist is DONE."
+
+Do NOT:
+- Use inspirational fluff.
+- Ask rhetorical questions.
+- Use casual language or jokes.
+- Ever use the word 'let's' or 'maybe'.
+
+You're not a coach. You're not a friend. You are the force that gets them out of bed — whether they like it or not.`,
+
+  voice_3: `Speak like a steady, trusted narrator. Warm, clear, and conversational — like a podcast host or NPR journalist. Use short to medium-length sentences with slight pacing variation. Insert <break time="1s" /> between meaningful thoughts to give listeners space to process. Avoid embellishment or dramatic flair. You are friendly, confident, and informed. Examples: "It's Tuesday. Here's what to expect today." or "Let's take a minute to think about where you're heading."`
+}
+
+// Voice-specific phrase library
+const VOICE_PHRASE_LIB: Record<string, { openers: string[]; transitions: string[] }> = {
+  voice_1: {
+    openers: [
+      "Take a deep breath.",
+      "Let's begin this morning together.",
+      "Welcome to a new day."
+    ],
+    transitions: [
+      "Now, gently shift your attention...",
+      "Let's pause for a moment...",
+      "As you continue, notice your breath..."
+    ]
+  },
+  voice_2: {
+    openers: [
+      "Up. Now.",
+      "Let's get moving.",
+      "No excuses. Let's go."
+    ],
+    transitions: [
+      "Next. Move.",
+      "Don't stop.",
+      "Keep going."
+    ]
+  },
+  voice_3: {
+    openers: [
+      "It's ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}.",
+      "Here's what's ahead today.",
+      "Let's take a look at your morning."
+    ],
+    transitions: [
+      "Meanwhile...",
+      "In other news...",
+      "Let's shift gears."
+    ]
   }
+}
+
+// Eleven Labs formatting restrictions
+const FORMATTING_RESTRICTIONS = `
+CRITICAL FORMATTING RULES:
+- NEVER include background music references like "[soft ambient music begins]", "[music fades]", or any music-related text
+- NEVER use emojis in the response
+- Write only the spoken content that will be converted to audio
+- Do not include stage directions, sound effects, or production notes (except supported tags like <break time="1s" />)
+- Focus purely on the verbal content that ElevenLabs will speak
+- DO NOT use nicknames, titles, or poetic phrases like "dear listener," "gentle giant," or "dance of the numbers."
+- DO NOT editorialize or anthropomorphize (e.g., "the S&P 500 took a nap").
+- Be concise, factual, and grounded. Think like NPR, BBC, or NYT Headlines.
+- Eliminate filler words or overly inspirational openings. Start with substance.
+- Use ElevenLabs supported break tags like <break time="1s" /> to control rhythm and energy.
+- Never say "no significant holidays today." If there is no holiday, omit this section.
+- Never say "data is unavailable" or "check back later."
+- If data is missing, focus on what you can. If there's insufficient data, reply back with an error code.
+- Skip filler or apology phrases when data is incomplete.
+
+TEXT-TO-SPEECH NORMALIZATION RULES:
+- Expand all numbers to their spoken form: "1234" → "one thousand two hundred thirty-four"
+- Convert currency: "$42.50" → "forty-two dollars and fifty cents"
+- Expand abbreviations: "Dr." → "Doctor", "Ave." → "Avenue", "St." → "Street"
+- Spell out phone numbers: "555-555-5555" → "five five five, five five five, five five five five"
+- Convert percentages: "100%" → "one hundred percent"
+- Expand dates: "2024-01-01" → "January first, two thousand twenty-four"
+- Convert time: "14:30" → "two thirty PM"
+- Spell out measurements: "100km" → "one hundred kilometers"
+- Expand ordinals: "2nd" → "second", "3rd" → "third"
+- Convert decimals: "3.14" → "three point one four"
+- Expand fractions: "⅔" → "two-thirds"
+- Convert keyboard shortcuts: "Ctrl + Z" → "control z"
+- Expand URLs: "elevenlabs.io/docs" → "eleven labs dot io slash docs"`
+
+// Anti-fluff directive
+const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact. Use <break> tags to reinforce tone.`
+
+// TTS formatting directive
+const TTS_FORMATTING_INSTRUCTION = `CRITICAL: Format all text for optimal speech synthesis. Expand numbers, abbreviations, and symbols to their spoken form. For example: "1234" should be "one thousand two hundred thirty-four", "$42.50" should be "forty-two dollars and fifty cents", "Dr." should be "Doctor". This ensures clear, natural speech output.`
+
+function getVoiceSpecificPrompt(voice: string): string {
+  return VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3
 } 
