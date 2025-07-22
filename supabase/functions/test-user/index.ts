@@ -1,4 +1,4 @@
-// Last Updated: 2024-07-20
+// Last Updated: 2024-07-21
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../shared/config.ts'
@@ -42,6 +42,16 @@ serve(async (req: Request) => {
         status: 200,
       })
     }
+    
+    // Log successful test user creation
+    await safeLogError(supabaseClient, {
+      event_type: 'test_user_create_success',
+      status: 'success',
+      message: `Test user created successfully: ${data?.[0]?.id}`,
+      user_id: data?.[0]?.id,
+      metadata: { testUser, created_user: data?.[0] },
+    })
+    
     return new Response(JSON.stringify({ success: true, user: data?.[0] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

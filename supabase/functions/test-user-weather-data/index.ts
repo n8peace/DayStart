@@ -1,4 +1,8 @@
-// Last Updated: 2024-07-20
+// Last Updated: 2024-07-21
+// Example request body:
+// {
+//   "user_id": "123e4567-e89b-12d3-a456-426614174000"
+// }
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../shared/config.ts'
@@ -66,6 +70,16 @@ serve(async (req: Request) => {
         status: 200,
       })
     }
+    
+    // Log successful test weather data creation
+    await safeLogError(supabaseClient, {
+      event_type: 'test_user_weather_data_create_success',
+      status: 'success',
+      message: `Test weather data created successfully for user: ${user_id}`,
+      user_id: user_id,
+      metadata: { testWeather, created_weather: data?.[0] },
+    })
+    
     return new Response(JSON.stringify({ success: true, weather: data?.[0] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
