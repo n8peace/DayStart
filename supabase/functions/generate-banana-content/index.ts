@@ -37,6 +37,8 @@ interface UserData {
   city: string
   state: string
   voice: string
+  dayOfWeek: string
+  date: string
   weather: WeatherData
   headlines: HeadlineData
   markets: MarketData
@@ -304,11 +306,16 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
   const current = weatherInfo.current || {}
   const forecast = weatherInfo.forecast || {}
 
+  // Get day of week and date for the current date
+  const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' })
+  
   return {
     name: userPrefs.name || 'there',
     city: userPrefs.city || location.city || 'your area',
     state: userPrefs.state || location.state || '',
     voice: userPrefs.voice || 'voice_1',
+    dayOfWeek: dayOfWeek,
+    date: date,
     weather: {
       temperature: current.temperature || forecast.high || 70,
       condition: current.condition || 'Unknown',
@@ -401,6 +408,7 @@ User Information:
 - Name: ${userData.name}
 - Location: ${userData.city}, ${userData.state}
 - Voice: ${userData.voice}
+- Date: ${userData.dayOfWeek}, ${userData.date}
 
 Current Weather:
 - Temperature: ${userData.weather.temperature}°F
@@ -416,14 +424,15 @@ Market Summary:
 ${userData.markets.summary}
 
 Requirements:
-1. Make it funny and engaging
-2. Include the user's name naturally
-3. Reference the weather in a humorous way
-4. Mention one or two headlines in a funny context
-5. Include a brief market reference
-6. Keep it between 90-120 seconds when spoken
-7. Use natural speech patterns with pauses and emphasis
-8. Make it feel personal and conversational
+1. Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")
+2. Make it funny and engaging
+3. Include the user's name naturally
+4. Reference the weather in a humorous way
+5. Mention one or two headlines in a funny context
+6. Include a brief market reference
+7. Keep it between 90-120 seconds when spoken
+8. Use natural speech patterns with pauses and emphasis
+9. Make it feel personal and conversational
 
 Write only the script text, no additional formatting or instructions.`
 
