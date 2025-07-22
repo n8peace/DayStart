@@ -268,35 +268,35 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
     throw new Error(`Failed to fetch weather data: ${weatherError?.message || 'No weather data found'}`)
   }
 
-  // Get headlines (business, political, pop culture)
+  // Get most recent headlines content block
   const { data: headlinesData, error: headlinesError } = await supabaseClient
     .from('content_blocks')
-    .select('content')
+    .select('content, parameters')
     .eq('content_type', 'headlines')
-    .eq('date', date)
     .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
+    .order('created_at', { ascending: false })
     .limit(1)
 
   if (headlinesError || !headlinesData || headlinesData.length === 0) {
     throw new Error(`Failed to fetch headlines: ${headlinesError?.message || 'No headlines found'}`)
   }
 
-  // Get market data
+  // Get most recent markets content block
   const { data: marketsData, error: marketsError } = await supabaseClient
     .from('content_blocks')
-    .select('content')
+    .select('content, parameters')
     .eq('content_type', 'markets')
-    .eq('date', date)
     .in('status', [ContentBlockStatus.READY, ContentBlockStatus.CONTENT_READY])
+    .order('created_at', { ascending: false })
     .limit(1)
 
   if (marketsError || !marketsData || marketsData.length === 0) {
     throw new Error(`Failed to fetch market data: ${marketsError?.message || 'No market data found'}`)
   }
 
-  // Parse headlines to extract business, political, and pop culture
-  const headlines = parseHeadlines(headlinesData[0].content)
-  const markets = parseMarkets(marketsData[0].content)
+  // Extract headlines and markets from existing content blocks
+  const headlines = extractHeadlinesFromContent(headlinesData[0])
+  const markets = extractMarketsFromContent(marketsData[0])
 
   // Parse weather data from JSONB structure
   const weatherInfo = weatherData.weather_data
@@ -321,9 +321,33 @@ async function gatherUserData(supabaseClient: any, userId: string, date: string)
   }
 }
 
-function parseHeadlines(content: string): HeadlineData {
-  // Simple parsing - in a real implementation, you might want more sophisticated parsing
-  const lines = content.split('\n').filter(line => line.trim())
+function extractHeadlinesFromContent(contentBlock: any): HeadlineData {
+  // Try to extract from parameters first (more structured data)
+  if (contentBlock.parameters) {
+    const params = contentBlock.parameters
+    
+    // Check if we have categorized headlines in parameters
+    if (params.business_headlines && params.political_headlines && params.entertainment_headlines) {
+      return {
+        business: params.business_headlines[0] || 'Business news is brewing',
+        political: params.political_headlines[0] || 'Politics are heating up',
+        popCulture: params.entertainment_headlines[0] || 'Entertainment is buzzing'
+      }
+    }
+    
+    // Check for other parameter structures
+    if (params.top_headlines && Array.isArray(params.top_headlines)) {
+      const headlines = params.top_headlines
+      return {
+        business: headlines.find(h => h.toLowerCase().includes('business') || h.toLowerCase().includes('market')) || 'Business news is brewing',
+        political: headlines.find(h => h.toLowerCase().includes('politic') || h.toLowerCase().includes('government')) || 'Politics are heating up',
+        popCulture: headlines.find(h => h.toLowerCase().includes('entertainment') || h.toLowerCase().includes('celebrity')) || 'Entertainment is buzzing'
+      }
+    }
+  }
+  
+  // Fallback to parsing content text
+  const lines = contentBlock.content.split('\n').filter(line => line.trim())
   
   return {
     business: lines.find(line => line.toLowerCase().includes('business') || line.toLowerCase().includes('market')) || 'Business news is brewing',
@@ -332,9 +356,32 @@ function parseHeadlines(content: string): HeadlineData {
   }
 }
 
-function parseMarkets(content: string): MarketData {
-  // Simple parsing - extract key information
-  const lines = content.split('\n').filter(line => line.trim())
+function extractMarketsFromContent(contentBlock: any): MarketData {
+  // Try to extract from parameters first (more structured data)
+  if (contentBlock.parameters) {
+    const params = contentBlock.parameters
+    
+    // Check for market summary in parameters
+    if (params.market_summary) {
+      return {
+        summary: params.market_summary,
+        trend: params.market_trend || 'trending',
+        keyMovers: params.key_movers || params.top_movers || []
+      }
+    }
+    
+    // Check for other parameter structures
+    if (params.overall_trend) {
+      return {
+        summary: params.summary || 'Markets are moving',
+        trend: params.overall_trend,
+        keyMovers: params.movers || []
+      }
+    }
+  }
+  
+  // Fallback to parsing content text
+  const lines = contentBlock.content.split('\n').filter(line => line.trim())
   
   return {
     summary: lines[0] || 'Markets are moving',
