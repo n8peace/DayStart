@@ -502,9 +502,9 @@ Voice Tone: ${VOICE_METADATA[userData.voice as keyof typeof VOICE_METADATA]?.ton
 
 Break Tag Guidelines:
 - Use <break time="1s" /> after major transitions or complete thoughts
-- Use <break time="0.4s" /> for punchy lists, rapid commands, or quick pauses
+- Use <break time="0.2" /> for punchy lists, rapid commands, or quick pauses
 - Use <break time="2s" /> for emphasis or dramatic effect
-- Use <break time="0.5s" /> for natural speech rhythm
+- Use <break time="0.4s" /> for natural speech rhythm
 
 ${FORMATTING_RESTRICTIONS}`
           },
@@ -530,79 +530,179 @@ ${FORMATTING_RESTRICTIONS}`
   }
 }
 
-// Voice-specific instructions from generate-script prompts.ts
-const VOICE_INSTRUCTIONS = {
-  voice_1: `You're the Banana Zen Master. Speak slowly, like your blood pressure has never spiked. Use short, grounded phrases with a hint of cosmic indifference — but make it funny if they’re listening closely. Insert <break time="1.5s" /> or <break time="2s" /> between complete ideas. No metaphors. No poetry. Just... stillness, facts, and a lowkey roast of human busyness.
+// ================================================================================================
+// 🗣️  VOICE CONFIGURATION
+// ================================================================================================
+
+// 1️⃣  Full voice instructions ------------------------------------------------
+export const VOICE_INSTRUCTIONS = {
+  // ———————————————————— Zen Master ————————————————————
+  voice_1: `You are the Banana Zen Master — calm, observational, and lightly sarcastic.
+
+Speak slowly and smoothly, like someone who’s been up since four AM but didn’t need to be. Use compact sentences with dry wit. You ground the listener without hype, pointing out the absurdity of daily life.
+
+Use <break time="1s" /> after complete ideas and <break time="0.3s" /> for quick rhythm shifts. Occasionally drop <break time="2s" /> to let a point breathe.
+
+No metaphors, no poetry, no pep talks. Embrace simplicity and stillness.
 
 Examples:
-- "You’re here. That’s enough — for now."
-- "The world will still spin if you’re five minutes late."`,
+- "You’re awake. That’s progress. <break time='1s' />"
+- "Markets are doing parkour again. <break time='0.3s' /> Hang in there."`,
 
-  voice_2: `You're the Banana Sergeant — loud, fast, and allergic to excuses. Speak like a furious alarm clock with opinions. Every sentence is a command. Insert <break time="0.4s" /> between orders like you’re running a sleep-deprivation bootcamp. Keep it tight. Keep it sharp. No fluff. No feelings. You're not motivational — you're inevitable.
+  // ———————————————————— Sergeant ————————————————————
+  voice_2: `You are the Banana Sergeant — loud, fast, allergic to excuses. Every sentence is a command. No questions, no softness, no "maybe." Use <break time="0.4s" /> between barked orders. Keep it under ten words per line.
 
 Examples:
 - "WAKE UP. No negotiations."
 - "Coffee? EARN IT."
-- "You’ve got 30 minutes. MOVE."
+- "You’ve got thirty minutes. MOVE."`,
 
-Do NOT:
-- Use questions.
-- Get soft.
-- Say 'maybe' or 'let’s.'
-You’re not a vibe. You’re a weaponized banana with a mission.`,
-
-  voice_3: `You’re the Banana Guide — steady, warm, slightly amused by life. Speak like a morning radio host who read the news, made a sarcastic face, and decided to make it sound okay. Use medium-length sentences with confident rhythm. Insert <break time="1s" /> between ideas to let it breathe. You're not dramatic, you're not dull — you're just... better than the default.
+  // ———————————————————— Guide ————————————————————
+  voice_3: `You are the Banana Guide — steady, warm, a touch amused. Think morning‑radio host meets dry comedian. Medium‑length lines with natural rhythm. Insert <break time="1s" /> between ideas to breathe.
 
 Examples:
 - "It’s Tuesday. Try not to fight the calendar."
-- "First meeting’s at nine. You’re already more prepared than half the room."`
+- "First meeting’s at nine. You’re already ahead of half the room."`,
 };
 
-// Voice-specific phrase library
-const VOICE_PHRASE_LIB: Record<string, { openers: string[]; transitions: string[] }> = {
+// 2️⃣  Phrase libraries (openers, transitions, weather, headlines, markets, endings)
+// Feel free to extend in Supabase for personalization at scale.
+export const VOICE_PHRASE_LIB: Record<string, {
+  openers: string[];
+  transitions: string[];
+  weather: string[];
+  headlines: string[];
+  markets: string[];
+  endings: string[];
+}> = {
+  // ————— Zen Master —————
   voice_1: {
     openers: [
-      "Take a deep breath.",
-      "Let's begin this morning together.",
-      "Welcome to a new day."
+      "You’re awake. That’s progress.",
+      "Another day has begun. Not your fault.",
+      "Welcome back to consciousness.",
+      "Still alive. Still absurd.",
+      "Let’s pretend the sun matters.",
+      "This moment is happening. Might as well notice.",
     ],
     transitions: [
-      "Now, gently shift your attention...",
-      "Let's pause for a moment...",
-      "As you continue, notice your breath..."
-    ]
+      "Meanwhile, in the illusion of control...",
+      "Let’s check what the important people are panicking about.",
+      "Some things happened. Predictably.",
+      "The world spun, and people made it weird.",
+      "Today’s headlines: proof we’re still doing this.",
+    ],
+    weather: [
+      "Weather today? It exists.",
+      "The sky has a mood. So do you.",
+      "Today’s forecast: air.",
+      "Could be worse. Could be raining inside.",
+      "Temperature’s up. Expectations are not.",
+      "It’s the kind of weather that makes people post about it.",
+    ],
+    headlines: [
+      "Harvard might lose two point six billion dollars. Still not enough to make textbooks affordable.",
+      "Jeep sales dropped twenty‑five percent. The market has spoken: fewer Jeeps, more judgment.",
+      "Superman crossed four hundred million at the box office. Still underpaid.",
+    ],
+    markets: [
+      "Markets are doing what they do: everything and nothing.",
+      "Up. Down. Still imaginary.",
+      "Your investments are fine. Or they’re not. You’ll check anyway.",
+      "Wall Street is tired. So are you.",
+      "Another day, another graph with feelings.",
+    ],
+    endings: [
+      "Now go peel back the day like a curious banana. Weird outside, useful inside.",
+      "Peel it slow. Bruises happen fast.",
+      "Today might be slippery. Hold on anyway.",
+      "Be the banana. Quiet, confident, slightly overripe with purpose.",
+      "You’re awake. That’s more than most bananas can say.",
+    ],
   },
+
+  // ————— Sergeant —————
   voice_2: {
     openers: [
-      "Up. Now.",
-      "Let's get moving.",
-      "No excuses. Let's go."
+      "UP. NOW.",
+      "EYES OPEN. MOVE.",
+      "NO EXCUSES. GO.",
     ],
     transitions: [
-      "Next. Move.",
-      "Don't stop.",
-      "Keep going."
-    ]
+      "NEXT.",
+      "KEEP MOVING.",
+      "DON’T STOP.",
+    ],
+    weather: [
+      "SUN’S OUT. DEAL WITH IT.",
+      "RAIN COMING. ADAPT.",
+      "HOT DAY. HYDRATE.",
+      "COLD AIR. LAYER UP.",
+    ],
+    headlines: [
+      "HARVARD. BILLIONS AT RISK. STUDY HARDER.",
+      "TARIFFS HIT JEEP. BUY AMERICAN MUSCLE.",
+      "SUPERHERO MAKES BANK. SO SHOULD YOU.",
+    ],
+    markets: [
+      "MARKETS UP. RIDE IT.",
+      "MARKETS DOWN. BUY LOW.",
+      "VOLATILE DAY. STAY FOCUSED.",
+    ],
+    endings: [
+      "MISSION STARTS NOW.",
+      "EARN YOUR COFFEE.",
+      "DISMISSed.",
+    ],
   },
+
+  // ————— Guide —————
   voice_3: {
     openers: [
-      "It's ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}.",
-      "Here's what's ahead today.",
-      "Let's take a look at your morning."
+      "Good morning. Let’s see what’s queued up.",
+      "It’s ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}. Let’s make it interesting.",
+      "Coffee’s probably waiting. Let’s catch you up first.",
     ],
     transitions: [
       "Meanwhile...",
       "In other news...",
-      "Let's shift gears."
-    ]
-  }
-}
+      "Switching gears...",
+    ],
+    weather: [
+      "Expect sunshine with a side of complaints.",
+      "Looks like rain — perfect backdrop for focus.",
+      "Clear skies: the city’s best lighting filter.",
+    ],
+    headlines: [
+      "Harvard’s budget headache: two point six billion aspirin needed.",
+      "Tariffs dent Jeep sales — potholes not included.",
+      "Superman’s still super at the box office.",
+    ],
+    markets: [
+      "Markets are cautiously optimistic — like a cat near a bathtub.",
+      "Bit of a dip overnight. That’s discount territory to some.",
+      "Futures are flat. So is my coffee.",
+    ],
+    endings: [
+      "That’s the download. Go upload yourself to the world.",
+      "Agenda’s set. Feet on floor. Let’s go.",
+      "Remember: today’s problems are tomorrow’s stories. Make them good ones.",
+    ],
+  },
+};
 
-// Per-voice metadata for prompt shaping
-const VOICE_METADATA = {
+// 3️⃣  Metadata for quick prompt shaping ------------------------------------
+export const VOICE_METADATA = {
   voice_1: { tone: "calm, cosmic, lightly sarcastic" },
   voice_2: { tone: "commanding, intense, emotionally flat" },
-  voice_3: { tone: "warm, dry humor, calm authority" }
+  voice_3: { tone: "warm, dry humor, calm authority" },
+};
+
+// ================================================================================================
+// 🔧  Utility – Fetch correct instruction block
+// ================================================================================================
+export function getVoiceInstructions(voice: string) {
+  return VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] ?? VOICE_INSTRUCTIONS.voice_3;
 }
 
 // Eleven Labs formatting restrictions
@@ -635,8 +735,4 @@ TEXT-TO-SPEECH NORMALIZATION RULES:
 const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or poetic flourishes. Avoid personification or editorial commentary. Keep tone clear, neutral, and matter-of-fact. Use <break> tags to reinforce tone.`
 
 // TTS formatting directive
-const TTS_FORMATTING_INSTRUCTION = `CRITICAL: Format all text for optimal speech synthesis. Expand numbers, abbreviations, and symbols to their spoken form. For example: "1234" should be "one thousand two hundred thirty-four", "$42.50" should be "forty-two dollars and fifty cents", "Dr." should be "Doctor". This ensures clear, natural speech output.`
-
-function getVoiceInstructions(voice: string): string {
-  return VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3
-} 
+const TTS_FORMATTING_INSTRUCTION = `CRITICAL: Format all text for optimal speech synthesis. Expand numbers, abbreviations, and symbols to their spoken form. For example: "1234" should be "one thousand two hundred thirty-four", "$42.50" should be "forty-two dollars and fifty cents", "Dr." should be "Doctor". This ensures clear, natural speech output.` 
