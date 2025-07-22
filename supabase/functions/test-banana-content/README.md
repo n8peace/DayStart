@@ -6,7 +6,7 @@ A test function to verify the banana content generation works correctly with exi
 
 This function tests the `generate-banana-content` function by:
 1. Finding a test user with complete data
-2. Verifying all required data exists (preferences, weather, headlines, markets)
+2. Verifying all required data exists (preferences, weather, most recent headlines/markets)
 3. Calling the banana content function
 4. Logging the results
 
@@ -30,9 +30,9 @@ Returns test results including:
 The function checks for:
 - At least one user in the database
 - User preferences (name, city, state, voice)
-- Today's headlines content
-- Today's markets content  
-- Today's weather data for the user
+- Most recent headlines content (not date-specific)
+- Most recent markets content (not date-specific)
+- Current weather data for the user (not date-specific)
 
 ## Usage
 

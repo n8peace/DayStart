@@ -55,30 +55,27 @@ serve(async (req: Request) => {
       })
     }
 
-    // Check if required content exists
-    const today = new Date().toISOString().split('T')[0]
-    
+    // Check if required content exists (most recent, not date-specific)
     const { data: headlinesData, error: headlinesError } = await supabaseClient
       .from('content_blocks')
       .select('id')
       .eq('content_type', 'headlines')
-      .eq('date', today)
       .in('status', ['ready', 'content_ready'])
+      .order('created_at', { ascending: false })
       .limit(1)
 
     const { data: marketsData, error: marketsError } = await supabaseClient
       .from('content_blocks')
       .select('id')
       .eq('content_type', 'markets')
-      .eq('date', today)
       .in('status', ['ready', 'content_ready'])
+      .order('created_at', { ascending: false })
       .limit(1)
 
     const { data: weatherData, error: weatherError } = await supabaseClient
       .from('user_weather_data')
       .select('id')
       .eq('user_id', testUserId)
-      .eq('date', today)
       .not('expires_at', 'lt', new Date().toISOString())
       .limit(1)
 

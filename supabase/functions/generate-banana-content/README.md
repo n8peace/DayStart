@@ -8,9 +8,10 @@ This function generates unique "banana content" - humorous morning wake-up scrip
 
 ## Function Flow
 
-1. **Data Gathering**: Collects user preferences, weather data, headlines, and market information
-2. **Script Generation**: Uses GPT-4o to create a personalized, funny wake-up script
-3. **Content Storage**: Creates a content block with `script_generated` status
+1. **Data Gathering**: Collects user preferences, weather data, and most recent headlines/markets content
+2. **Content Extraction**: Extracts structured data from existing content block parameters
+3. **Script Generation**: Uses GPT-4o to create a personalized, funny wake-up script
+4. **Content Storage**: Creates a content block with `script_generated` status
 
 ## API Endpoint
 
@@ -43,9 +44,11 @@ Returns immediately with success status, then processes content asynchronously:
 The function requires the following data to be available:
 
 - **User Preferences**: `user_preferences` table with user_id, name, city, state, voice
-- **Weather Data**: `user_weather_data` table with current weather information
-- **Headlines**: `content_blocks` table with `content_type: 'headlines'` and status `ready` or `content_ready`
-- **Market Data**: `content_blocks` table with `content_type: 'markets'` and status `ready` or `content_ready`
+- **Weather Data**: `user_weather_data` table with current weather information (uses user's zipcode as location_key)
+- **Headlines**: Most recent `content_blocks` with `content_type: 'headlines'` and status `ready` or `content_ready`
+- **Market Data**: Most recent `content_blocks` with `content_type: 'markets'` and status `ready` or `content_ready`
+
+**Note**: The function uses existing content blocks rather than making new API calls, making it more efficient and reliable.
 
 ## Voice Support
 
