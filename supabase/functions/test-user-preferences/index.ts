@@ -19,6 +19,18 @@ serve(async (req: Request) => {
     })
   }
 
+  // Handle GET requests for health checks
+  if (req.method === 'GET') {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'test-user-preferences function is healthy',
+      note: 'Use POST with user_id in body to create test preferences'
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
