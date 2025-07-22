@@ -196,12 +196,13 @@ async function processBananaContent(supabaseClient: any, userId: string): Promis
     const script = await generateBananaScript(userData)
     
     // Step 3: Create content block
+    const now = new Date().toISOString()
     const contentBlock: Partial<ContentBlock> = {
       user_id: userId,
       content_type: 'banana',
       date: utcDateStr,
       script: script,
-      script_generated_at: new Date().toISOString(),
+      script_generated_at: now,
       status: ContentBlockStatus.SCRIPT_GENERATED,
       voice: userData.voice,
       content_priority: 1,
@@ -415,11 +416,34 @@ function extractMarketsFromContent(contentBlock: any): MarketData {
 }
 
 async function generateBananaScript(userData: UserData): Promise<string> {
-  const voicePrompt = getVoiceSpecificPrompt(userData.voice)
+  const voicePrompt = getVoiceInstructions(userData.voice)
+  const instructionOffset = userData.weather ? 0 : -1
+  
+  // Build requirements array with proper numbering
+  const requirements = [
+    `Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")`,
+    'Make it funny and engaging while maintaining the voice style',
+    'Include the user\'s name naturally'
+  ]
+  
+  if (userData.weather) {
+    requirements.push('Reference the weather in a humorous way')
+  }
+  
+  requirements.push(
+    'Mention one or two headlines in a funny context',
+    'Include a brief market reference',
+    'Keep it between 90-120 seconds when spoken',
+    'Use ElevenLabs break tags to control pacing: <break time="1s" /> after major transitions, <break time="0.4s" /> for punchy lists or rapid commands',
+    'Make it feel personal and conversational',
+    'Format all numbers, dates, and abbreviations for speech synthesis'
+  )
   
   const prompt = `You are a hilarious morning wake-up script writer. Create a 90-120 second funny morning wake-up script for Eleven Labs voice generation.
 
 Voice Style Instructions: ${VOICE_INSTRUCTIONS[userData.voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+Voice Tone: ${VOICE_METADATA[userData.voice as keyof typeof VOICE_METADATA]?.tone || 'friendly and engaging'}
 
 ${FORMATTING_RESTRICTIONS}
 
@@ -443,16 +467,7 @@ Market Summary:
 ${userData.markets.summary}
 
 Requirements:
-1. Start with "It's ${userData.dayOfWeek}, [date without year]." (e.g., "It's Monday, July twenty-first.")
-2. Make it funny and engaging while maintaining the voice style
-3. Include the user's name naturally
-${userData.weather ? '4. Reference the weather in a humorous way' : ''}
-${userData.weather ? '5. Mention one or two headlines in a funny context' : '4. Mention one or two headlines in a funny context'}
-${userData.weather ? '6. Include a brief market reference' : '5. Include a brief market reference'}
-${userData.weather ? '7. Keep it between 90-120 seconds when spoken' : '6. Keep it between 90-120 seconds when spoken'}
-${userData.weather ? '8. Use ElevenLabs break tags to control pacing, formatting example <break time="1s" />' : '7. Use ElevenLabs break tags to control pacing, formatting example <break time="1s" />'}
-${userData.weather ? '9. Make it feel personal and conversational' : '8. Make it feel personal and conversational'}
-${userData.weather ? '10. Format all numbers, dates, and abbreviations for speech synthesis' : '9. Format all numbers, dates, and abbreviations for speech synthesis'}
+${requirements.map((req, index) => `${index + 1}. ${req}`).join('\n')}
 
 ${NO_FLUFF_INSTRUCTION}
 
@@ -482,6 +497,14 @@ Key Responsibilities:
 - Ensure all text is optimized for natural speech output
 
 Voice Style: ${VOICE_INSTRUCTIONS[userData.voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3}
+
+Voice Tone: ${VOICE_METADATA[userData.voice as keyof typeof VOICE_METADATA]?.tone || 'friendly and engaging'}
+
+Break Tag Guidelines:
+- Use <break time="1s" /> after major transitions or complete thoughts
+- Use <break time="0.4s" /> for punchy lists, rapid commands, or quick pauses
+- Use <break time="2s" /> for emphasis or dramatic effect
+- Use <break time="0.5s" /> for natural speech rhythm
 
 ${FORMATTING_RESTRICTIONS}`
           },
@@ -575,6 +598,13 @@ const VOICE_PHRASE_LIB: Record<string, { openers: string[]; transitions: string[
   }
 }
 
+// Per-voice metadata for prompt shaping
+const VOICE_METADATA = {
+  voice_1: { tone: "calm, cosmic, lightly sarcastic" },
+  voice_2: { tone: "commanding, intense, emotionally flat" },
+  voice_3: { tone: "warm, dry humor, calm authority" }
+}
+
 // Eleven Labs formatting restrictions
 const FORMATTING_RESTRICTIONS = `
 CRITICAL FORMATTING RULES:
@@ -607,6 +637,6 @@ const NO_FLUFF_INSTRUCTION = `IMPORTANT: Strip all metaphors, sentimentality, or
 // TTS formatting directive
 const TTS_FORMATTING_INSTRUCTION = `CRITICAL: Format all text for optimal speech synthesis. Expand numbers, abbreviations, and symbols to their spoken form. For example: "1234" should be "one thousand two hundred thirty-four", "$42.50" should be "forty-two dollars and fifty cents", "Dr." should be "Doctor". This ensures clear, natural speech output.`
 
-function getVoiceSpecificPrompt(voice: string): string {
+function getVoiceInstructions(voice: string): string {
   return VOICE_INSTRUCTIONS[voice as keyof typeof VOICE_INSTRUCTIONS] || VOICE_INSTRUCTIONS.voice_3
 } 
