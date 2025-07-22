@@ -562,15 +562,15 @@ async function checkBananaContentFunction(supabaseClient: any): Promise<HealthCh
 
 // Main function to run all health checks
 export async function runHealthChecks(supabaseClient: any): Promise<HealthReport> {
-  const checks = [
-    await checkDatabaseConnectivity(supabaseClient),
-    await checkContentPipeline(supabaseClient),
-    await checkRecentErrors(supabaseClient),
-    await checkExpiredContent(supabaseClient),
-    await checkExternalAPIs(),
-    await checkUserActivity(supabaseClient),
-    await checkBananaContentFunction(supabaseClient)
-  ]
+  const checks = await Promise.all([
+    checkDatabaseConnectivity(supabaseClient),
+    checkContentPipeline(supabaseClient),
+    checkRecentErrors(supabaseClient),
+    checkExpiredContent(supabaseClient),
+    checkExternalAPIs(),
+    checkUserActivity(supabaseClient),
+    checkBananaContentFunction(supabaseClient)
+  ])
 
   // Calculate overall status
   const criticalCount = checks.filter(check => check.status === 'critical').length
