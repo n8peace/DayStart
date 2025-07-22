@@ -44,28 +44,32 @@ Returns immediately with success status, then processes content asynchronously:
 The function requires the following data to be available:
 
 - **User Preferences**: `user_preferences` table with user_id, name, city, state, voice
-- **Weather Data**: `user_weather_data` table with current weather information (uses user's zipcode as location_key)
+- **Weather Data**: `user_weather_data` table with current weather information (optional - uses user's zipcode as location_key)
 - **Headlines**: Most recent `content_blocks` with `content_type: 'headlines'` and status `ready` or `content_ready`
 - **Market Data**: Most recent `content_blocks` with `content_type: 'markets'` and status `ready` or `content_ready`
 
-**Note**: The function uses existing content blocks rather than making new API calls, making it more efficient and reliable.
+**Note**: The function uses existing content blocks rather than making new API calls, making it more efficient and reliable. Weather data is optional - scripts will be generated without weather references if data is unavailable.
 
 ## Voice Support
 
-Supports all three Eleven Labs voices with voice-specific prompts:
+Supports all three Eleven Labs voices with comprehensive voice-specific instructions:
 
-- **voice_1**: Female, meditative, calm, and soothing
-- **voice_2**: Male, drill sergeant, energetic, and commanding  
-- **voice_3**: Male, narrative, warm, and conversational
+- **voice_1**: Calm, cosmic, lightly sarcastic - meditative morning guide
+- **voice_2**: Commanding, intense, emotionally flat - no-nonsense drill sergeant
+- **voice_3**: Warm, dry humor, calm authority - steady, trusted narrator
+
+Each voice includes specific tone metadata, phrase libraries, and break tag guidelines for optimal speech synthesis.
 
 ## Content Features
 
 The generated script includes:
-- Personalized greeting using user's name
-- Weather references in humorous context
+- Personalized greeting using user's name and current date
+- Weather references in humorous context (when available)
 - Current headlines (business, political, pop culture)
 - Market summary
-- Natural speech patterns optimized for voice generation
+- Voice-specific tone and pacing
+- Eleven Labs break tags for optimal speech rhythm
+- TTS-optimized formatting (expanded numbers, abbreviations)
 
 ## Environment Variables
 
@@ -86,9 +90,11 @@ Required:
 Creates content blocks with:
 - `content_type: 'banana'`
 - `status: 'script_generated'`
+- `script_generated_at` timestamp
 - 72-hour expiration
 - Priority level 1
-- All gathered data stored in `parameters` field
+- All gathered data stored in both `content` and `parameters` fields
+- Weather data stored as `null` when unavailable
 
 ## Logging
 

@@ -72,23 +72,22 @@ serve(async (req: Request) => {
       .order('created_at', { ascending: false })
       .limit(1)
 
+    // Check for weather data (optional)
     const { data: weatherData, error: weatherError } = await supabaseClient
       .from('user_weather_data')
       .select('id')
-      .eq('user_id', testUserId)
+      .eq('location_key', userPrefs.location_zip)
       .not('expires_at', 'lt', new Date().toISOString())
       .limit(1)
 
-    const missingData = []
+    const missingData: string[] = []
     if (headlinesError || !headlinesData || headlinesData.length === 0) {
       missingData.push('headlines')
     }
     if (marketsError || !marketsData || marketsData.length === 0) {
       missingData.push('markets')
     }
-    if (weatherError || !weatherData || weatherData.length === 0) {
-      missingData.push('weather')
-    }
+    // Weather is optional, so we don't add it to missingData
 
     if (missingData.length > 0) {
       return new Response(JSON.stringify({ 

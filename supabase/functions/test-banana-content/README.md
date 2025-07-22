@@ -6,9 +6,10 @@ A test function to verify the banana content generation works correctly with exi
 
 This function tests the `generate-banana-content` function by:
 1. Finding a test user with complete data
-2. Verifying all required data exists (preferences, weather, most recent headlines/markets)
-3. Calling the banana content function
-4. Logging the results
+2. Verifying all required data exists (preferences, most recent headlines/markets)
+3. Checking for optional weather data (uses user's zipcode)
+4. Calling the banana content function
+5. Logging the results
 
 ## API Endpoint
 
@@ -32,7 +33,7 @@ The function checks for:
 - User preferences (name, city, state, voice)
 - Most recent headlines content (not date-specific)
 - Most recent markets content (not date-specific)
-- Current weather data for the user (not date-specific)
+- Weather data (optional - uses user's zipcode as location_key)
 
 ## Usage
 
