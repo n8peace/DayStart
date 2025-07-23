@@ -125,6 +125,9 @@ A unified approach to content management that separates content generation from 
 | `user_id` | UUID | Primary key, references users table |
 | `timezone` | VARCHAR(50) | User's timezone for scheduling and timing |
 | `location_zip` | VARCHAR(10) | User's zipcode for location-based content matching |
+| `name` | VARCHAR(100) | User's display name for personalization |
+| `city` | VARCHAR(100) | User's city for location-based content matching |
+| `state` | VARCHAR(2) | User's state (2-letter code) for location-based content matching |
 | `voice` | VARCHAR(100) | ElevenLabs voice identifier for user preference |
 | `created_at` | TIMESTAMP WITH TIME ZONE | When the record was created |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification to the record |
@@ -141,11 +144,17 @@ The following preferences are managed by the app and passed as parameters during
 - Primary key on `user_id`
 - Index on `location_zip` for location-based content matching
 - Index on `timezone` for timezone-based queries
+- Index on `name` for name-based queries
+- Index on `city` for city-based content matching
+- Index on `state` for state-based content matching
 
 **Constraints**:
 - `user_id` references `users.id`
 - `timezone` cannot be null
 - `location_zip` cannot be null
+- `name` cannot be empty if provided
+- `city` cannot be empty if provided
+- `state` must be exactly 2 characters if provided
 
 **RLS Policies**:
 - Users can only read/write their own preferences (user_id = auth.uid())

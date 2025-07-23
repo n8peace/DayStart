@@ -91,7 +91,7 @@ jobs:
         echo "Deploying database migrations to development..."
         export PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
         echo "Attempting database migration deployment..."
-        supabase db push
+        supabase db push --include-all
         
     - name: Deploy Edge Functions (Update Only)
       env:

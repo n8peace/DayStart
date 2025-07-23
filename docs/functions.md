@@ -345,3 +345,87 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 ---
 
 **Last Updated**: July 2024 
+
+## Test & Development Functions
+
+> **Note:** These functions are for development and testing only. They create test data in the database and should not be used in production environments.
+
+### test-user
+**Purpose**: Creates a test user row in the `users` table with a unique email.
+**Endpoint**: `/functions/test-user`
+**Method**: `POST` (no body required)
+
+**Example Request:**
+```http
+POST /functions/test-user
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "id": "...uuid...",
+    "email": "testuser_1721481600000@example.com",
+    ...
+  }
+}
+```
+
+---
+
+### test-user-preferences
+**Purpose**: Creates a test user_preferences row for a given user UUID.
+**Endpoint**: `/functions/test-user-preferences`
+**Method**: `POST`
+**Body:**
+```json
+{
+  "user_id": "<uuid>"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "preferences": {
+    "user_id": "<uuid>",
+    "timezone": "America/New_York",
+    "location_zip": "10001",
+    "name": "Test User",
+    "city": "New York",
+    "state": "NY",
+    "voice": "voice_1",
+    ...
+  }
+}
+```
+
+---
+
+### test-user-weather-data
+**Purpose**: Creates a test user_weather_data row for a given user UUID with custom weather data.
+**Endpoint**: `/functions/test-user-weather-data`
+**Method**: `POST`
+**Body:**
+```json
+{
+  "user_id": "<uuid>"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "weather": {
+    "id": "...uuid...",
+    "location_key": "10001",
+    "date": "2024-07-20",
+    "weather_data": { "summary": "Sunny", "temp": 75, "user_id": "<uuid>" },
+    "expires_at": "2024-07-21T00:00:00Z",
+    ...
+  }
+}
+``` 

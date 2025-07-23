@@ -211,11 +211,12 @@ export const VOICE_CONFIGS: Record<string, VoiceConfig> = {
     name: 'Adam',
     description: 'Male drill sergeant voice - amped up like Major Payne, aggressive and commanding',
     modelId: 'eleven_multilingual_v2',
-    stability: 0.2, // more vocal unpredictability
+    stability: 0.2, // 20 (range: 20–30)
     similarityBoost: 0.6,
-    style: 0.9, // max assertiveness
+    style: 1.0, // 100 (range: 90–100)
     useSpeakerBoost: true,
-    pauseAfterSentences: 0.3 // fast pacing
+    pauseAfterSentences: 0.3, // fast pacing
+    // Speed: 1.1x to 1.3x (handled at synthesis or playback layer)
   },
   voice_3: {
     voiceId: 'QczW7rKFMVYyubTC1QDk',

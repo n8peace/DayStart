@@ -33,4 +33,16 @@ export interface LogEntry {
   user_id?: string;
 }
 
+export interface UserPreferences {
+  user_id: string;
+  timezone: string;
+  location_zip: string;
+  name?: string;
+  city?: string;
+  state?: string;
+  voice?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Add other shared types as needed 

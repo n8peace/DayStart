@@ -437,16 +437,140 @@ async function checkUserActivity(supabaseClient: any): Promise<HealthCheckResult
   }
 }
 
+async function checkBananaContentFunction(supabaseClient: any): Promise<HealthCheckResult> {
+  try {
+    // Check for recent banana content generation activity
+    const twentyFourHoursAgo = new Date()
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
+
+    // Check for banana content blocks created in the last 24 hours
+    const { data: recentBananaContent, error: contentError } = await supabaseClient
+      .from('content_blocks')
+      .select('id, status, created_at, user_id')
+      .eq('content_type', 'banana')
+      .gte('created_at', twentyFourHoursAgo.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (contentError) {
+      return {
+        status: 'critical',
+        component: 'banana_content_function',
+        message: `Failed to query banana content: ${contentError.message}`,
+        timestamp: new Date().toISOString()
+      }
+    }
+
+    // Check for banana content generation logs in the last 24 hours
+    const { data: recentBananaLogs, error: logError } = await supabaseClient
+      .from('logs')
+      .select('event_type, status, message, created_at')
+      .or('event_type.eq.banana_content_generated,event_type.eq.banana_content_generation_failed')
+      .gte('created_at', twentyFourHoursAgo.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (logError) {
+      return {
+        status: 'critical',
+        component: 'banana_content_function',
+        message: `Failed to query banana content logs: ${logError.message}`,
+        timestamp: new Date().toISOString()
+      }
+    }
+
+    // Analyze banana content status distribution
+    const statusDistribution = recentBananaContent.reduce((acc: any, block: any) => {
+      acc[block.status] = (acc[block.status] || 0) + 1
+      return acc
+    }, {})
+
+    // Count success vs failure logs
+    const successLogs = recentBananaLogs.filter((log: any) => log.status === 'success')
+    const failureLogs = recentBananaLogs.filter((log: any) => log.status === 'error')
+    const totalLogs = recentBananaLogs.length
+
+    const successRate = totalLogs > 0 ? (successLogs.length / totalLogs) * 100 : 100
+
+    // Check for stuck banana content (script_generated status for more than 1 hour)
+    const oneHourAgo = new Date()
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1)
+
+    const { data: stuckBananaContent, error: stuckError } = await supabaseClient
+      .from('content_blocks')
+      .select('id, created_at')
+      .eq('content_type', 'banana')
+      .eq('status', 'script_generated')
+      .lt('created_at', oneHourAgo.toISOString())
+
+    if (stuckError) {
+      return {
+        status: 'critical',
+        component: 'banana_content_function',
+        message: `Failed to query stuck banana content: ${stuckError.message}`,
+        timestamp: new Date().toISOString()
+      }
+    }
+
+    let status: 'healthy' | 'warning' | 'critical' = 'healthy'
+    let message = 'Banana content function operating normally'
+
+    // Check for high failure rate
+    if (successRate < 80 && totalLogs > 5) {
+      status = 'critical'
+      message = `Banana content function has high failure rate: ${successRate.toFixed(1)}% success`
+    } else if (successRate < 90 && totalLogs > 5) {
+      status = 'warning'
+      message = `Banana content function has elevated failure rate: ${successRate.toFixed(1)}% success`
+    }
+
+    // Check for stuck content
+    if (stuckBananaContent && stuckBananaContent.length > 5) {
+      status = status === 'critical' ? 'critical' : 'warning'
+      message = `Banana content function has ${stuckBananaContent.length} stuck items waiting for audio generation`
+    }
+
+    // Check for no recent activity (warning if no activity in 24 hours)
+    if (recentBananaContent.length === 0 && recentBananaLogs.length === 0) {
+      status = 'warning'
+      message = 'No banana content generation activity in the last 24 hours'
+    }
+
+    return {
+      status,
+      component: 'banana_content_function',
+      message,
+      metrics: {
+        content_blocks_24h: recentBananaContent.length,
+        status_distribution: statusDistribution,
+        logs_24h: totalLogs,
+        success_logs: successLogs.length,
+        failure_logs: failureLogs.length,
+        success_rate_percent: successRate.toFixed(2),
+        stuck_content_count: stuckBananaContent?.length || 0,
+        recent_activity: recentBananaContent.length > 0 || recentBananaLogs.length > 0
+      },
+      timestamp: new Date().toISOString()
+    }
+  } catch (error) {
+    return {
+      status: 'critical',
+      component: 'banana_content_function',
+      message: `Banana content function check failed: ${error.message}`,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
 // Main function to run all health checks
 export async function runHealthChecks(supabaseClient: any): Promise<HealthReport> {
-  const checks = [
-    await checkDatabaseConnectivity(supabaseClient),
-    await checkContentPipeline(supabaseClient),
-    await checkRecentErrors(supabaseClient),
-    await checkExpiredContent(supabaseClient),
-    await checkExternalAPIs(),
-    await checkUserActivity(supabaseClient)
-  ]
+  const checks = await Promise.all([
+    checkDatabaseConnectivity(supabaseClient),
+    checkContentPipeline(supabaseClient),
+    checkRecentErrors(supabaseClient),
+    checkExpiredContent(supabaseClient),
+    checkExternalAPIs(),
+    checkUserActivity(supabaseClient),
+    checkBananaContentFunction(supabaseClient)
+  ])
 
   // Calculate overall status
   const criticalCount = checks.filter(check => check.status === 'critical').length
